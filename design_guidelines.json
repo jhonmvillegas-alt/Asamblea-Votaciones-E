@@ -1,0 +1,147 @@
+{
+  "project_name": "SES_Voting_App",
+  "design_philosophy": {
+    "identity": "E1_Swiss_High_Contrast",
+    "core_principle": "Absolute Clarity & Institutional Trust",
+    "vibe": "Formal, Transparent, Efficient",
+    "archetype": "Swiss & High-Contrast (Archetype 4)"
+  },
+  "typography": {
+    "headings": {
+      "family": "Chivo, sans-serif",
+      "usage": "All section titles, modal headers, and the 'Current Point' display.",
+      "weights": "900 (Black) for impact, 700 (Bold) for hierarchy"
+    },
+    "body": {
+      "family": "Manrope, sans-serif",
+      "usage": "General text, instructions, list items.",
+      "weights": "400 (Regular), 500 (Medium)"
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Timestamps, ID numbers, vote counts."
+    },
+    "installation": "Add: @import url('https://fonts.googleapis.com/css2?family=Chivo:wght@400;700;900&family=Manrope:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');"
+  },
+  "colors": {
+    "theme": "light",
+    "palette": {
+      "background": "#F8FAFC",
+      "foreground": "#0F172A",
+      "primary": "#2563EB",
+      "primary_foreground": "#FFFFFF",
+      "secondary": "#F1F5F9",
+      "secondary_foreground": "#0F172A",
+      "accent": "#F59E0B",
+      "muted": "#94A3B8",
+      "border": "#E2E8F0"
+    },
+    "voting_actions": {
+      "approve": "#16A34A",
+      "reject": "#DC2626",
+      "abstain": "#64748B",
+      "blank": "#CBD5E1"
+    },
+    "chart_colors": [
+      "#16A34A",
+      "#DC2626",
+      "#64748B",
+      "#CBD5E1"
+    ],
+    "gradients": {
+      "live_pulse": "linear-gradient(90deg, #2563EB 0%, #60A5FA 50%, #2563EB 100%)"
+    }
+  },
+  "spacing": {
+    "scale": "tailwinds_default",
+    "strategy": "Generous padding (p-6, p-8) for desktop readability. Dense (p-3, gap-2) for mobile voting grid to prevent scrolling."
+  },
+  "components": {
+    "cards": {
+      "style": "flat",
+      "border": "1px solid #E2E8F0",
+      "radius": "rounded-lg",
+      "shadow": "shadow-sm hover:shadow-md transition-shadow duration-200"
+    },
+    "buttons": {
+      "default": "h-10 px-4 py-2 rounded-md font-medium",
+      "mobile_action": "h-20 text-xl font-bold uppercase tracking-wide shadow-sm active:scale-95 transition-transform"
+    },
+    "inputs": {
+      "style": "bg-white border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 rounded-md"
+    },
+    "status_indicators": {
+      "active": "bg-green-100 text-green-700 border border-green-200 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider",
+      "closed": "bg-slate-100 text-slate-600 border border-slate-200 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider",
+      "pending": "bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider"
+    }
+  },
+  "layout_strategies": {
+    "voting_panel": {
+      "type": "Mobile-First Grid",
+      "structure": "Header (Sticky) -> Question Card -> 2x2 Action Grid -> Status Footer",
+      "rules": "No scrolling required on modern phones. Buttons must be touch-friendly."
+    },
+    "live_results": {
+      "type": "Bento Grid",
+      "structure": "Hero (Current Question) -> Main Chart (Bar) -> Participation Stats -> Delegate List (Scrollable)",
+      "visuals": "High contrast for projector visibility. Massive font sizes for totals."
+    },
+    "admin_dashboard": {
+      "type": "Dense Sidebar Layout",
+      "structure": "Sidebar -> Topbar -> Content Area (Tables/Forms)",
+      "focus": "Data density and quick actions (Open/Close Voting)."
+    }
+  },
+  "visual_enhancers": {
+    "tracing_beam": "Use on the 'Active Voting Point' card to signal urgency and focus.",
+    "glassmorphism": "Use on the sticky header for the delegate view (backdrop-blur-md bg-white/80).",
+    "micro_interactions": "Buttons should have a distinct 'press' animation (scale-95). Results bars should animate width on update."
+  },
+  "icons": {
+    "library": "lucide-react",
+    "style": "Stroke width 2px for clarity.",
+    "key_icons": {
+      "vote": "Vote",
+      "results": "BarChart3",
+      "users": "Users",
+      "check": "CheckCircle2",
+      "close": "XCircle",
+      "menu": "Menu"
+    }
+  },
+  "accessibility": {
+    "contrast": "AA Standard minimum. Text on colored buttons must be white or dark slate depending on bg brightness.",
+    "focus_states": "Visible ring-2 ring-offset-2 ring-blue-500.",
+    "screen_readers": "All charts must have tabular fallback or aria-labels."
+  },
+  "motion": {
+    "library": "framer-motion",
+    "preferences": {
+      "reduced_motion": "Respect system settings.",
+      "defaults": {
+        "duration": 0.3,
+        "ease": "easeOut"
+      }
+    }
+  },
+  "universal_guidelines": [
+    "Do not use gradients for background, keep it clean and flat.",
+    "Ensure 'Live' indicators are pulsing or distinct.",
+    "Test all layouts on mobile viewport sizes (375px width).",
+    "Use 'sonner' for toast notifications (success/error feedback).",
+    "Add 'data-testid' to all interactive elements."
+  ],
+  "image_strategy": {
+    "use_images": false,
+    "instruction": "Use purely typographic and icon-based design. No stock photos to maintain institutional seriousness."
+  },
+  "instructions_to_main_agent": [
+    "1. Setup Shadcn UI components first.",
+    "2. Install 'recharts' for the results view.",
+    "3. Implement the Layouts: 'DelegateLayout' (Mobile focused) and 'AdminLayout' (Desktop sidebar).",
+    "4. Create the 'VotingCard' component with the 2x2 grid buttons.",
+    "5. Ensure the 'LiveResults' component uses a polling or websocket mechanism (mocked if needed) to animate changes.",
+    "6. Prioritize the 'Happy Path': Login -> View Active Point -> Vote -> See Confirmation."
+  ]
+}
