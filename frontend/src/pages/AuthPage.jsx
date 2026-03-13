@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
 
@@ -11,12 +11,7 @@ export default function AuthPage({ onAuthSuccess }) {
   const [registerForm, setRegisterForm] = useState(initialRegister);
   const [delegateLoginForm, setDelegateLoginForm] = useState(initialDelegateLogin);
   const [adminLoginForm, setAdminLoginForm] = useState(initialAdminLogin);
-  const [adminSetup, setAdminSetup] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    api.getSetupInfo().then(setAdminSetup).catch(() => null);
-  }, []);
 
   const handleRegister = async (event) => {
     event.preventDefault();
@@ -226,17 +221,11 @@ export default function AuthPage({ onAuthSuccess }) {
               </button>
             </form>
 
-            {adminSetup && (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3" data-testid="admin-default-credentials">
-                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">Credenciales iniciales</p>
-                <p className="mt-1 text-sm text-amber-800" data-testid="admin-default-username">
-                  Usuario: <strong>{adminSetup.admin_username}</strong>
-                </p>
-                <p className="text-sm text-amber-800" data-testid="admin-default-password">
-                  Clave: <strong>{adminSetup.admin_password}</strong>
-                </p>
-              </div>
-            )}
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3" data-testid="admin-credentials-note">
+              <p className="text-sm text-blue-800">
+                Las credenciales del administrador son de configuración interna de la mesa directiva.
+              </p>
+            </div>
           </div>
         )}
       </div>

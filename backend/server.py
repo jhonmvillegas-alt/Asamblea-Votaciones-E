@@ -31,11 +31,11 @@ admins_coll = db.admin_users
 points_coll = db.agenda_points
 votes_coll = db.votes
 
-SECRET_KEY = "SES_ASAMBLEA_VOTACION_2026"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_MINUTES = 600
-DEFAULT_ADMIN_USERNAME = "admin"
-DEFAULT_ADMIN_PASSWORD = "ses2026"
+DEFAULT_ADMIN_USERNAME = os.environ["DEFAULT_ADMIN_USERNAME"]
+DEFAULT_ADMIN_PASSWORD = os.environ["DEFAULT_ADMIN_PASSWORD"]
+SECRET_KEY = os.environ["JWT_SECRET_KEY"]
 
 VOTE_CHOICES = ["aprobado", "no_aprobado", "abstencion", "en_blanco"]
 VOTE_LABELS = {
@@ -210,15 +210,6 @@ async def ensure_default_admin() -> None:
 @api_router.get("/")
 async def root() -> Dict[str, str]:
     return {"message": "SES Votación en Vivo API"}
-
-
-@api_router.get("/public/setup")
-async def public_setup_info() -> Dict[str, str]:
-    return {
-        "admin_username": DEFAULT_ADMIN_USERNAME,
-        "admin_password": DEFAULT_ADMIN_PASSWORD,
-        "note": "Cambie la contraseña del administrador en una siguiente fase de seguridad.",
-    }
 
 
 @api_router.post("/auth/register-delegate", response_model=MessageResponse)

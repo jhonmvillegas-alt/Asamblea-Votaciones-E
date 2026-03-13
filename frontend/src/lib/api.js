@@ -31,7 +31,6 @@ async function apiRequest(path, options = {}) {
 }
 
 export const api = {
-  getSetupInfo: () => apiRequest("/public/setup"),
   registerDelegate: (payload) =>
     apiRequest("/auth/register-delegate", { method: "POST", body: payload }),
   loginDelegate: (payload) => apiRequest("/auth/login-delegate", { method: "POST", body: payload }),

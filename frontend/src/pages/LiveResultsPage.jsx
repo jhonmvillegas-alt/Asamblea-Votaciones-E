@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../lib/api";
 
 const chartPalette = {
@@ -46,6 +46,8 @@ export default function LiveResultsPage() {
     }));
   }, [state]);
 
+  const chartWidth = useMemo(() => Math.max(560, chartData.length * 180), [chartData.length]);
+
   return (
     <section className="mx-auto w-full max-w-7xl space-y-6 px-4 py-8 sm:px-6 lg:px-8" data-testid="live-results-page">
       <article className="ses-card ses-appear overflow-hidden" data-testid="live-hero-card">
@@ -81,20 +83,18 @@ export default function LiveResultsPage() {
         <article className="ses-card p-5" data-testid="live-chart-card">
           <h3 className="text-lg font-bold text-slate-900">Conteo del punto activo</h3>
           {chartData.length ? (
-            <div className="mt-4 h-72" data-testid="live-active-results-chart">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="opcion" />
-                  <YAxis allowDecimals={false} />
-                  <Tooltip />
-                  <Bar dataKey="votos" radius={[8, 8, 0, 0]}>
-                    {chartData.map((entry) => (
-                      <Cell key={entry.key} fill={chartPalette[entry.key]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <div className="mt-4 overflow-x-auto" data-testid="live-active-results-chart">
+              <BarChart data={chartData} width={chartWidth} height={280}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="opcion" />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="votos" radius={[8, 8, 0, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell key={entry.key} fill={chartPalette[entry.key]} />
+                  ))}
+                </Bar>
+              </BarChart>
             </div>
           ) : (
             <p className="mt-3 text-sm text-slate-600" data-testid="live-chart-empty-message">
