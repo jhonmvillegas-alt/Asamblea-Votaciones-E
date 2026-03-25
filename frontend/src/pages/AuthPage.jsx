@@ -34,6 +34,12 @@ export default function AuthPage({ onAuthSuccess }) {
     loadBootstrapStatus();
   }, []);
 
+  useEffect(() => {
+    if (bootstrapStatus && !bootstrapStatus.setup_required && activeTab === "setup") {
+      setActiveTab("admin");
+    }
+  }, [bootstrapStatus, activeTab]);
+
   const handleRegister = async (event) => {
     event.preventDefault();
     setLoading(true);
@@ -177,16 +183,18 @@ export default function AuthPage({ onAuthSuccess }) {
           >
             Mesa directiva
           </button>
-          <button
-            data-testid="auth-tab-setup"
-            type="button"
-            onClick={() => setActiveTab("setup")}
-            className={`w-full rounded-md px-4 py-2 text-sm font-bold transition-colors ${
-              activeTab === "setup" ? "bg-white text-blue-700" : "text-slate-600"
-            }`}
-          >
-            Configuración inicial
-          </button>
+          {bootstrapStatus?.setup_required && (
+            <button
+              data-testid="auth-tab-setup"
+              type="button"
+              onClick={() => setActiveTab("setup")}
+              className={`w-full rounded-md px-4 py-2 text-sm font-bold transition-colors ${
+                activeTab === "setup" ? "bg-white text-blue-700" : "text-slate-600"
+              }`}
+            >
+              Configuración inicial
+            </button>
+          )}
         </div>
 
         {activeTab === "delegado" ? (
@@ -270,6 +278,9 @@ export default function AuthPage({ onAuthSuccess }) {
           <div className="space-y-4" data-testid="admin-auth-panel">
             <form className="space-y-3" onSubmit={handleAdminLogin} data-testid="admin-login-form">
               <h3 className="text-xl font-bold text-slate-900">Ingreso mesa directiva</h3>
+              <p className="text-sm text-slate-600" data-testid="admin-login-help-text">
+                Desde aquí puedes modificar votantes y preguntas de la asamblea en cualquier momento.
+              </p>
               <label className="block text-sm font-medium text-slate-700" htmlFor="admin-username">
                 Usuario
               </label>
@@ -399,6 +410,14 @@ export default function AuthPage({ onAuthSuccess }) {
                   {" "}
                   {bootstrapStatus?.points_count ?? 0}
                 </p>
+                <button
+                  data-testid="bootstrap-go-admin-button"
+                  type="button"
+                  onClick={() => setActiveTab("admin")}
+                  className="mt-3 h-10 w-full rounded-md bg-emerald-700 text-sm font-bold text-white transition-colors hover:bg-emerald-800"
+                >
+                  Ir a Mesa directiva para modificar datos
+                </button>
               </div>
             )}
           </div>

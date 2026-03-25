@@ -67,6 +67,7 @@
 - Frontend admin ampliado para votantes por CSV/Excel (además de texto).
 - Parser de CSV reforzado para soportar campos entrecomillados con comas internas.
 - Validación funcional completa (backend + frontend) sin bloqueos en reporte de pruebas.
+- Ajuste UX: la pestaña "Configuración inicial" ahora se oculta automáticamente cuando el setup ya fue completado, evitando confusión; la edición de datos se hace desde "Mesa directiva".
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)
