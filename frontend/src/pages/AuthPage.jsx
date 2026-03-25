@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
 import { api } from "../lib/api";
 import { parseDelegatesFile, parsePointsFile } from "../lib/importParsers";
 
@@ -61,11 +62,36 @@ export default function AuthPage({ onAuthSuccess }) {
       const response = await api.loginDelegate(delegateLoginForm);
       onAuthSuccess(response);
       toast.success(`Bienvenido/a ${response.user_name}`);
+      if (response.using_temporary_password) {
+        toast.message("Está usando clave temporal. Recomendamos cambiarla en su panel para mayor seguridad.");
+      }
     } catch (error) {
       toast.error(error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const downloadDelegateAccessGuide = () => {
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    let y = 16;
+    doc.setFontSize(16);
+    doc.text("Instructivo de acceso para delegados - SES", 14, y);
+    y += 9;
+    doc.setFontSize(11);
+    doc.text("1) Usuario de ingreso: documento del delegado.", 14, y);
+    y += 7;
+    doc.text("2) Clave temporal inicial: ultimos 4 digitos del documento.", 14, y);
+    y += 7;
+    doc.text("3) Al ingresar, se recomienda cambiar la clave en el panel del delegado.", 14, y);
+    y += 7;
+    doc.text("4) Mantener la clave en reserva y no compartirla.", 14, y);
+    y += 10;
+    doc.setFontSize(10);
+    doc.text("Este instructivo no incluye contrasenas individuales.", 14, y);
+    y += 6;
+    doc.text(`Generado: ${new Date().toLocaleString()}`, 14, y);
+    doc.save("instructivo_acceso_delegados_ses.pdf");
   };
 
   const handleAdminLogin = async (event) => {
@@ -237,6 +263,9 @@ export default function AuthPage({ onAuthSuccess }) {
 
             <form className="space-y-3" onSubmit={handleDelegateLogin} data-testid="delegado-login-form">
               <h3 className="text-xl font-bold text-slate-900">2) Iniciar sesión como delegado</h3>
+              <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800" data-testid="delegate-login-temporary-password-note">
+                Clave temporal inicial para nuevos delegados: últimos 4 dígitos del documento.
+              </p>
               <label className="block text-sm font-medium text-slate-700" htmlFor="login-document">
                 Documento
               </label>
@@ -271,6 +300,14 @@ export default function AuthPage({ onAuthSuccess }) {
                 disabled={loading}
               >
                 Entrar al panel de votación
+              </button>
+              <button
+                data-testid="delegate-access-guide-download-button"
+                className="h-10 w-full rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"
+                type="button"
+                onClick={downloadDelegateAccessGuide}
+              >
+                Descargar instructivo de acceso (PDF)
               </button>
             </form>
           </div>

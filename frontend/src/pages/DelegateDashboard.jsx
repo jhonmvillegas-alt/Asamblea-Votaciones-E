@@ -15,6 +15,9 @@ export default function DelegateDashboard({ auth }) {
   const [activePointState, setActivePointState] = useState({ has_active_point: false });
   const [loading, setLoading] = useState(true);
   const [submittingVote, setSubmittingVote] = useState(false);
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ current_password: "", new_password: "" });
+  const [temporaryPasswordActive, setTemporaryPasswordActive] = useState(!!auth?.usingTemporaryPassword);
 
   const refresh = useCallback(async () => {
     try {
@@ -54,6 +57,21 @@ export default function DelegateDashboard({ auth }) {
     }
   };
 
+  const onChangePassword = async (event) => {
+    event.preventDefault();
+    setChangingPassword(true);
+    try {
+      const response = await api.changeDelegatePassword(auth.accessToken, passwordForm);
+      toast.success(response.message);
+      setPasswordForm({ current_password: "", new_password: "" });
+      setTemporaryPasswordActive(false);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   if (loading) {
     return (
       <section className="mx-auto w-full max-w-4xl px-4 py-8 sm:px-6 lg:px-8" data-testid="delegate-loading-screen">
@@ -72,6 +90,44 @@ export default function DelegateDashboard({ auth }) {
         <p className="ses-test-mono text-sm text-slate-600" data-testid="delegate-profile-document">
           Documento: {profile?.document_id}
         </p>
+      </div>
+
+      <div className="ses-card ses-appear p-5" data-testid="delegate-password-security-card">
+        <h3 className="text-lg font-bold text-slate-900">Seguridad de acceso</h3>
+        {temporaryPasswordActive && (
+          <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800" data-testid="delegate-temporary-password-warning">
+            Está usando contraseña temporal. Recomendamos cambiarla para proteger sus datos.
+          </p>
+        )}
+        <form className="mt-3 grid gap-3 sm:grid-cols-2" onSubmit={onChangePassword} data-testid="delegate-change-password-form">
+          <input
+            data-testid="delegate-current-password-input"
+            type="password"
+            value={passwordForm.current_password}
+            onChange={(event) => setPasswordForm((prev) => ({ ...prev, current_password: event.target.value }))}
+            className="h-11 rounded-md border border-slate-200 px-3 text-sm focus:border-blue-500 focus:outline-none"
+            placeholder="Contraseña actual"
+            required
+          />
+          <input
+            data-testid="delegate-new-password-input"
+            type="password"
+            value={passwordForm.new_password}
+            onChange={(event) => setPasswordForm((prev) => ({ ...prev, new_password: event.target.value }))}
+            className="h-11 rounded-md border border-slate-200 px-3 text-sm focus:border-blue-500 focus:outline-none"
+            placeholder="Nueva contraseña"
+            minLength={6}
+            required
+          />
+          <button
+            data-testid="delegate-change-password-submit-button"
+            type="submit"
+            disabled={changingPassword}
+            className="h-11 rounded-md bg-slate-900 px-4 text-sm font-bold text-white transition-colors hover:bg-slate-700 disabled:opacity-60 sm:col-span-2"
+          >
+            Guardar nueva contraseña
+          </button>
+        </form>
       </div>
 
       {!activePointState?.has_active_point ? (

@@ -59,6 +59,13 @@ def normalize_document(document_id: str) -> str:
     return normalized
 
 
+def build_temporary_password(document_id: str) -> str:
+    safe_document = normalize_document(document_id)
+    if len(safe_document) <= 4:
+        return safe_document
+    return safe_document[-4:]
+
+
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 
@@ -127,7 +134,7 @@ class DelegateRegisterInput(BaseModel):
 
 class DelegateLoginInput(BaseModel):
     document_id: str = Field(min_length=4, max_length=40)
-    password: str = Field(min_length=6, max_length=40)
+    password: str = Field(min_length=4, max_length=40)
 
 
 class AdminLoginInput(BaseModel):
@@ -140,6 +147,7 @@ class AuthResponse(BaseModel):
     token_type: str = "bearer"
     role: Literal["delegate", "admin"]
     user_name: str
+    using_temporary_password: bool = False
 
 
 class UserProfile(BaseModel):
@@ -158,6 +166,11 @@ class AgendaPointCreate(BaseModel):
 class VoteCastInput(BaseModel):
     point_id: str
     choice: Literal["aprobado", "no_aprobado", "abstencion", "en_blanco"]
+
+
+class DelegateChangePasswordInput(BaseModel):
+    current_password: str = Field(min_length=4, max_length=40)
+    new_password: str = Field(min_length=6, max_length=40)
 
 
 class MessageResponse(BaseModel):
@@ -285,8 +298,9 @@ async def upsert_delegates(items: List[DelegateUploadItem]) -> Tuple[int, int]:
                 "id": str(uuid.uuid4()),
                 "full_name": item.full_name.strip(),
                 "document_id": document_id,
-                "is_registered": False,
-                "password_hash": "",
+                "is_registered": True,
+                "password_hash": hash_password(build_temporary_password(document_id)),
+                "temporary_password_active": True,
                 "created_at": now_iso(),
             }
         )
@@ -450,6 +464,7 @@ async def register_delegate(payload: DelegateRegisterInput) -> MessageResponse:
             "$set": {
                 "is_registered": True,
                 "password_hash": hash_password(payload.password),
+                "temporary_password_active": False,
                 "registered_at": now_iso(),
             }
         },
@@ -471,7 +486,12 @@ async def login_delegate(payload: DelegateLoginInput) -> AuthResponse:
     token = create_access_token(
         {"sub": delegate["id"], "role": "delegate", "name": delegate["full_name"]}
     )
-    return AuthResponse(access_token=token, role="delegate", user_name=delegate["full_name"])
+    return AuthResponse(
+        access_token=token,
+        role="delegate",
+        user_name=delegate["full_name"],
+        using_temporary_password=bool(delegate.get("temporary_password_active", False)),
+    )
 
 
 @api_router.post("/auth/login-admin", response_model=AuthResponse)
@@ -507,6 +527,31 @@ async def auth_me(current_user: AuthUser = Depends(get_current_user)) -> UserPro
     )
 
 
+@api_router.post("/auth/change-password-delegate", response_model=MessageResponse)
+async def change_delegate_password(
+    payload: DelegateChangePasswordInput,
+    current_delegate: AuthUser = Depends(require_delegate),
+) -> MessageResponse:
+    delegate = await delegates_coll.find_one({"id": current_delegate.user_id}, {"_id": 0})
+    if not delegate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegado no encontrado")
+
+    if not verify_password(payload.current_password, delegate.get("password_hash", "")):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Contraseña actual inválida")
+
+    await delegates_coll.update_one(
+        {"id": current_delegate.user_id},
+        {
+            "$set": {
+                "password_hash": hash_password(payload.new_password),
+                "temporary_password_active": False,
+                "password_updated_at": now_iso(),
+            }
+        },
+    )
+    return MessageResponse(message="Contraseña actualizada correctamente")
+
+
 @api_router.post("/admin/delegates/upload", response_model=UploadSummaryResponse)
 async def upload_delegates(
     payload: DelegateUploadPayload,
@@ -525,10 +570,12 @@ async def upload_delegates(
 async def delegates_summary(_: AuthUser = Depends(require_admin)) -> Dict[str, int]:
     total_in_padron = await delegates_coll.count_documents({})
     registered = await delegates_coll.count_documents({"is_registered": True})
+    temporary_password_active = await delegates_coll.count_documents({"temporary_password_active": True})
     return {
         "total_in_padron": total_in_padron,
         "registrados": registered,
         "pendientes_registro": max(total_in_padron - registered, 0),
+        "con_clave_temporal": temporary_password_active,
     }
 
 

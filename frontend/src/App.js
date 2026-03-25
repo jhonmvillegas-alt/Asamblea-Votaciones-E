@@ -36,6 +36,7 @@ function App() {
       accessToken: payload.access_token,
       role: payload.role,
       userName: payload.user_name,
+      usingTemporaryPassword: !!payload.using_temporary_password,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authSession));
     setAuth(authSession);

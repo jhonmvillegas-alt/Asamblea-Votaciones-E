@@ -36,6 +36,8 @@ export const api = {
   registerDelegate: (payload) =>
     apiRequest("/auth/register-delegate", { method: "POST", body: payload }),
   loginDelegate: (payload) => apiRequest("/auth/login-delegate", { method: "POST", body: payload }),
+  changeDelegatePassword: (token, payload) =>
+    apiRequest("/auth/change-password-delegate", { method: "POST", token, body: payload }),
   loginAdmin: (payload) => apiRequest("/auth/login-admin", { method: "POST", body: payload }),
   getProfile: (token) => apiRequest("/auth/me", { token }),
 

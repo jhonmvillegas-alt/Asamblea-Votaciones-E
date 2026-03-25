@@ -393,6 +393,10 @@ export default function AdminDashboard({ auth }) {
               <p className="ses-test-mono text-2xl font-black text-amber-700">{summary?.pendientes_registro ?? 0}</p>
             </div>
           </div>
+          <p className="mt-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800" data-testid="admin-temporary-password-policy-note">
+            Política activa: nuevos delegados cargados reciben clave temporal = últimos 4 del documento (solo para nuevos).
+            Con clave temporal actual: {summary?.con_clave_temporal ?? 0}.
+          </p>
         </article>
 
         <article className="ses-card p-5" data-testid="admin-final-report-card">
