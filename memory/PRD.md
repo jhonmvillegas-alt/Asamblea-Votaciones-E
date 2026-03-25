@@ -68,6 +68,19 @@
 - Parser de CSV reforzado para soportar campos entrecomillados con comas internas.
 - Validación funcional completa (backend + frontend) sin bloqueos en reporte de pruebas.
 - Ajuste UX: la pestaña "Configuración inicial" ahora se oculta automáticamente cuando el setup ya fue completado, evitando confusión; la edición de datos se hace desde "Mesa directiva".
+- Funcionalidad nueva de difusión por punto:
+  - Enlaces públicos por punto (`/resultados/punto/:pointId`) para compartir resultado al cierre de cada votación.
+  - Botón en admin para copiar enlace público y abrir vista compartible.
+  - Descarga de imagen (PNG) de resultado por punto para compartir en mensajería.
+- Informe final de asamblea:
+  - Nuevo endpoint admin consolidado `/api/admin/reports/final-data`.
+  - Descarga de informe **PDF** y **CSV** desde panel de mesa directiva.
+  - Incluye totales por punto y detalle de voto por delegado.
+- Estandarización de opciones de respuesta visibles como selección numerada:
+  - 1. Aprobado
+  - 2. No aprobado
+  - 3. Abstención
+  - 4. Voto en blanco
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)
