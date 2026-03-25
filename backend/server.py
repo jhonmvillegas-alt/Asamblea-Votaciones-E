@@ -169,6 +169,12 @@ class UploadSummaryResponse(BaseModel):
     total_in_padron: int
 
 
+def build_empty_totals() -> Dict[str, int]:
+    totals = {choice: 0 for choice in VOTE_CHOICES}
+    totals["total_votes"] = 0
+    return totals
+
+
 async def calculate_point_totals(point_id: str) -> Dict[str, int]:
     rows = await votes_coll.aggregate(
         [
@@ -185,6 +191,42 @@ async def calculate_point_totals(point_id: str) -> Dict[str, int]:
 
     totals["total_votes"] = sum(totals[choice] for choice in VOTE_CHOICES)
     return totals
+
+
+async def calculate_totals_for_points(point_ids: List[str]) -> Dict[str, Dict[str, int]]:
+    unique_point_ids = list(dict.fromkeys(point_ids))
+    if not unique_point_ids:
+        return {}
+
+    rows = await votes_coll.aggregate(
+        [
+            {"$match": {"point_id": {"$in": unique_point_ids}}},
+            {
+                "$group": {
+                    "_id": {"point_id": "$point_id", "choice": "$choice"},
+                    "count": {"$sum": 1},
+                }
+            },
+        ]
+    ).to_list(length=5000)
+
+    totals_map: Dict[str, Dict[str, int]] = {
+        point_id: build_empty_totals() for point_id in unique_point_ids
+    }
+
+    for row in rows:
+        group_id = row.get("_id", {})
+        current_point_id = group_id.get("point_id")
+        choice = group_id.get("choice")
+        if current_point_id in totals_map and choice in VOTE_CHOICES:
+            totals_map[current_point_id][choice] = int(row.get("count", 0))
+
+    for point_id in totals_map:
+        totals_map[point_id]["total_votes"] = sum(
+            totals_map[point_id][choice] for choice in VOTE_CHOICES
+        )
+
+    return totals_map
 
 
 async def fetch_active_point() -> Optional[Dict]:
@@ -377,13 +419,11 @@ async def create_agenda_point(
 @api_router.get("/admin/points")
 async def list_agenda_points(_: AuthUser = Depends(require_admin)) -> Dict[str, List[Dict]]:
     points = await points_coll.find({}, {"_id": 0}).sort("order", 1).to_list(length=100)
+    totals_by_point = await calculate_totals_for_points([point["id"] for point in points])
     enriched_points = []
     for point in points:
-        totals = await calculate_point_totals(point["id"])
-        enriched_points.append({
-            **point,
-            "results": totals,
-        })
+        totals = totals_by_point.get(point["id"], build_empty_totals())
+        enriched_points.append({**point, "results": totals})
     return {"points": enriched_points}
 
 
@@ -479,15 +519,11 @@ async def cast_vote(payload: VoteCastInput, current_delegate: AuthUser = Depends
 @api_router.get("/voting/results/public")
 async def public_results() -> Dict:
     points = await points_coll.find({}, {"_id": 0}).sort("order", 1).to_list(length=100)
+    totals_by_point = await calculate_totals_for_points([point["id"] for point in points])
     output = []
     for point in points:
-        totals = await calculate_point_totals(point["id"])
-        output.append(
-            {
-                **point,
-                "results": totals,
-            }
-        )
+        totals = totals_by_point.get(point["id"], build_empty_totals())
+        output.append({**point, "results": totals})
 
     total_in_padron = await delegates_coll.count_documents({})
     registered = await delegates_coll.count_documents({"is_registered": True})
@@ -555,15 +591,20 @@ async def directiva_results(
 async def live_state() -> Dict:
     active_point = await fetch_active_point()
     points = await points_coll.find({}, {"_id": 0}).sort("order", 1).to_list(100)
+    totals_by_point = await calculate_totals_for_points([point["id"] for point in points])
 
     all_point_results = []
     for point in points:
-        totals = await calculate_point_totals(point["id"])
+        totals = totals_by_point.get(point["id"], build_empty_totals())
         all_point_results.append({**point, "results": totals})
 
     total_in_padron = await delegates_coll.count_documents({})
     registered = await delegates_coll.count_documents({"is_registered": True})
-    active_results = await calculate_point_totals(active_point["id"]) if active_point else None
+    active_results = None
+    if active_point:
+        active_results = totals_by_point.get(active_point["id"])
+        if active_results is None:
+            active_results = await calculate_point_totals(active_point["id"])
 
     return {
         "active_point": active_point,
