@@ -55,6 +55,19 @@
   - Validación visual con screenshots Playwright.
   - Corrección de warning de chart rendering en resultados.
 
+### 2026-03-25
+- Mejoras solicitadas para operación real en despliegue:
+  - Nuevo asistente de **Configuración inicial** cuando no existe admin (`/api/public/bootstrap-status`, `/api/public/bootstrap-initialize`).
+  - Creación inicial de administrador desde UI + carga inicial de votantes y preguntas.
+  - Nueva carga masiva de preguntas por backend (`/api/admin/points/bulk`).
+- Frontend admin ampliado para ingreso de preguntas por **3 métodos**:
+  - Individual (formulario),
+  - Masivo por texto,
+  - Carga por archivo CSV/Excel.
+- Frontend admin ampliado para votantes por CSV/Excel (además de texto).
+- Parser de CSV reforzado para soportar campos entrecomillados con comas internas.
+- Validación funcional completa (backend + frontend) sin bloqueos en reporte de pruebas.
+
 ## Backlog priorizado
 ### P0 (siguiente iteración)
 - Cambio seguro de contraseña admin desde UI protegida.

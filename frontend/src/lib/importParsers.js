@@ -8,6 +8,39 @@ function normalizeKey(value) {
     .trim();
 }
 
+function parseCsvLine(line, delimiter) {
+  const cells = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const nextChar = line[index + 1];
+
+    if (char === '"' && inQuotes && nextChar === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (char === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (char === delimiter && !inQuotes) {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  cells.push(current.trim());
+  return cells;
+}
+
 function parseCsvRows(text) {
   const lines = text
     .split(/\r?\n/)
@@ -19,10 +52,10 @@ function parseCsvRows(text) {
   }
 
   const delimiter = lines[0].includes(";") ? ";" : ",";
-  const headers = lines[0].split(delimiter).map((header) => normalizeKey(header));
+  const headers = parseCsvLine(lines[0], delimiter).map((header) => normalizeKey(header));
 
   return lines.slice(1).map((line) => {
-    const values = line.split(delimiter).map((value) => value.trim());
+    const values = parseCsvLine(line, delimiter);
     const row = {};
     headers.forEach((header, index) => {
       row[header] = values[index] || "";
