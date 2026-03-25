@@ -4,10 +4,10 @@ import { toast } from "sonner";
 import { api } from "../lib/api";
 
 const voteButtons = [
-  { value: "aprobado", label: "Aprobado", className: "bg-green-600 hover:bg-green-700 text-white" },
-  { value: "no_aprobado", label: "No aprobado", className: "bg-red-600 hover:bg-red-700 text-white" },
-  { value: "abstencion", label: "Abstención", className: "bg-slate-600 hover:bg-slate-700 text-white" },
-  { value: "en_blanco", label: "En blanco", className: "bg-slate-200 hover:bg-slate-300 text-slate-900" },
+  { value: "aprobado", label: "1. Aprobado", className: "bg-green-600 hover:bg-green-700 text-white" },
+  { value: "no_aprobado", label: "2. No aprobado", className: "bg-red-600 hover:bg-red-700 text-white" },
+  { value: "abstencion", label: "3. Abstención", className: "bg-slate-600 hover:bg-slate-700 text-white" },
+  { value: "en_blanco", label: "4. Voto en blanco", className: "bg-slate-200 hover:bg-slate-300 text-slate-900" },
 ];
 
 export default function DelegateDashboard({ auth }) {

@@ -40,10 +40,10 @@ AUTO_CREATE_DEFAULT_ADMIN = os.environ["AUTO_CREATE_DEFAULT_ADMIN"].lower() == "
 
 VOTE_CHOICES = ["aprobado", "no_aprobado", "abstencion", "en_blanco"]
 VOTE_LABELS = {
-    "aprobado": "Aprobado",
-    "no_aprobado": "No aprobado",
-    "abstencion": "Abstención",
-    "en_blanco": "En blanco",
+    "aprobado": "1. Aprobado",
+    "no_aprobado": "2. No aprobado",
+    "abstencion": "3. Abstención",
+    "en_blanco": "4. Voto en blanco",
 }
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -346,6 +346,36 @@ async def ensure_default_admin() -> None:
         }
     )
     logger.info("Administrador por defecto creado")
+
+
+async def build_votes_detail_for_points(point_ids: List[str]) -> Dict[str, List[Dict]]:
+    if not point_ids:
+        return {}
+
+    votes = await votes_coll.find(
+        {"point_id": {"$in": point_ids}},
+        {"_id": 0},
+    ).sort("voted_at", 1).to_list(20000)
+
+    delegate_ids = list({vote.get("delegate_id") for vote in votes if vote.get("delegate_id")})
+    delegates = await delegates_coll.find({"id": {"$in": delegate_ids}}, {"_id": 0}).to_list(5000)
+    delegate_map = {delegate["id"]: delegate for delegate in delegates}
+
+    votes_by_point: Dict[str, List[Dict]] = {point_id: [] for point_id in point_ids}
+    for vote in votes:
+        delegate = delegate_map.get(vote["delegate_id"], {})
+        votes_by_point.setdefault(vote["point_id"], []).append(
+            {
+                "delegate_id": vote["delegate_id"],
+                "delegate_name": delegate.get("full_name", "No identificado"),
+                "document_id": delegate.get("document_id", "N/A"),
+                "choice": vote["choice"],
+                "choice_label": vote["choice_label"],
+                "voted_at": vote["voted_at"],
+            }
+        )
+
+    return votes_by_point
 
 
 @api_router.get("/")
@@ -660,6 +690,20 @@ async def public_results() -> Dict:
     }
 
 
+@api_router.get("/voting/results/public/{point_id}")
+async def public_result_by_point(point_id: str) -> Dict:
+    point = await points_coll.find_one({"id": point_id}, {"_id": 0})
+    if not point:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Punto no encontrado")
+
+    totals = await calculate_point_totals(point_id)
+    return {
+        "point": point,
+        "results": totals,
+        "choice_labels": VOTE_LABELS,
+    }
+
+
 @api_router.get("/voting/results/directiva")
 async def directiva_results(
     point_id: Optional[str] = Query(default=None),
@@ -676,25 +720,8 @@ async def directiva_results(
         return {"has_data": False, "message": "No hay puntos creados todavía"}
 
     totals = await calculate_point_totals(point["id"])
-    votes = await votes_coll.find({"point_id": point["id"]}, {"_id": 0}).sort("voted_at", -1).to_list(1000)
-
-    delegate_ids = [vote["delegate_id"] for vote in votes]
-    delegates = await delegates_coll.find({"id": {"$in": delegate_ids}}, {"_id": 0}).to_list(1000)
-    delegate_map = {delegate["id"]: delegate for delegate in delegates}
-
-    vote_details = []
-    for vote in votes:
-        delegate = delegate_map.get(vote["delegate_id"], {})
-        vote_details.append(
-            {
-                "delegate_id": vote["delegate_id"],
-                "delegate_name": delegate.get("full_name", "No identificado"),
-                "document_id": delegate.get("document_id", "N/A"),
-                "choice": vote["choice"],
-                "choice_label": vote["choice_label"],
-                "voted_at": vote["voted_at"],
-            }
-        )
+    votes_by_point = await build_votes_detail_for_points([point["id"]])
+    vote_details = list(reversed(votes_by_point.get(point["id"], [])))
 
     total_in_padron = await delegates_coll.count_documents({})
     registered = await delegates_coll.count_documents({"is_registered": True})
@@ -709,6 +736,46 @@ async def directiva_results(
             "registrados": registered,
             "votaron_este_punto": totals["total_votes"],
         },
+    }
+
+
+@api_router.get("/admin/reports/final-data")
+async def final_report_data(_: AuthUser = Depends(require_admin)) -> Dict:
+    points = await points_coll.find({}, {"_id": 0}).sort("order", 1).to_list(300)
+    point_ids = [point["id"] for point in points]
+    totals_by_point = await calculate_totals_for_points(point_ids)
+    votes_by_point = await build_votes_detail_for_points(point_ids)
+
+    total_in_padron = await delegates_coll.count_documents({})
+    registered = await delegates_coll.count_documents({"is_registered": True})
+
+    report_points = []
+    global_totals = build_empty_totals()
+    for point in points:
+        totals = totals_by_point.get(point["id"], build_empty_totals())
+        votes = votes_by_point.get(point["id"], [])
+        report_points.append(
+            {
+                **point,
+                "results": totals,
+                "votes": votes,
+            }
+        )
+        for choice in VOTE_CHOICES:
+            global_totals[choice] += totals.get(choice, 0)
+        global_totals["total_votes"] += totals.get("total_votes", 0)
+
+    return {
+        "generated_at": now_iso(),
+        "assembly_name": "Asamblea Delegados SES",
+        "choice_labels": VOTE_LABELS,
+        "stats": {
+            "total_in_padron": total_in_padron,
+            "registrados": registered,
+            "total_puntos": len(points),
+        },
+        "global_totals": global_totals,
+        "points": report_points,
     }
 
 

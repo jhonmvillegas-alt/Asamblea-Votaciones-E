@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { jsPDF } from "jspdf";
 import { api } from "../lib/api";
 import { parseDelegatesFile, parsePointsFile, parsePointsTextBlock } from "../lib/importParsers";
 
 const normalizeVoteLabel = {
-  aprobado: "Aprobado",
-  no_aprobado: "No aprobado",
-  abstencion: "Abstención",
-  en_blanco: "En blanco",
+  aprobado: "1. Aprobado",
+  no_aprobado: "2. No aprobado",
+  abstencion: "3. Abstención",
+  en_blanco: "4. Voto en blanco",
 };
 
 export default function AdminDashboard({ auth }) {
@@ -19,6 +20,7 @@ export default function AdminDashboard({ auth }) {
   const [pointForm, setPointForm] = useState({ title: "", description: "", order: "" });
   const [pointsBulkText, setPointsBulkText] = useState("");
   const [pointsFromFile, setPointsFromFile] = useState([]);
+  const [reportLoading, setReportLoading] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -169,6 +171,181 @@ export default function AdminDashboard({ auth }) {
     }
   };
 
+  const getPointShareLink = (pointId) => `${window.location.origin}/resultados/punto/${pointId}`;
+
+  const copyPointShareLink = async (pointId) => {
+    const url = getPointShareLink(pointId);
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Enlace público copiado");
+    } catch {
+      toast.error("No se pudo copiar el enlace");
+    }
+  };
+
+  const openPointShareLink = (pointId) => {
+    window.open(getPointShareLink(pointId), "_blank", "noopener,noreferrer");
+  };
+
+  const buildCsvContent = (reportData) => {
+    const rows = [
+      [
+        "Punto",
+        "Titulo",
+        "Estado",
+        "Aprobado",
+        "No aprobado",
+        "Abstencion",
+        "Voto en blanco",
+        "Total votos punto",
+        "Delegado",
+        "Documento",
+        "Voto delegado",
+        "Fecha voto",
+      ],
+    ];
+
+    (reportData.points || []).forEach((point) => {
+      const totals = point.results || {};
+      const votes = point.votes || [];
+      if (!votes.length) {
+        rows.push([
+          point.order,
+          point.title,
+          point.status,
+          totals.aprobado || 0,
+          totals.no_aprobado || 0,
+          totals.abstencion || 0,
+          totals.en_blanco || 0,
+          totals.total_votes || 0,
+          "",
+          "",
+          "",
+          "",
+        ]);
+        return;
+      }
+
+      votes.forEach((vote, index) => {
+        rows.push([
+          index === 0 ? point.order : "",
+          index === 0 ? point.title : "",
+          index === 0 ? point.status : "",
+          index === 0 ? totals.aprobado || 0 : "",
+          index === 0 ? totals.no_aprobado || 0 : "",
+          index === 0 ? totals.abstencion || 0 : "",
+          index === 0 ? totals.en_blanco || 0 : "",
+          index === 0 ? totals.total_votes || 0 : "",
+          vote.delegate_name,
+          vote.document_id,
+          vote.choice_label,
+          vote.voted_at,
+        ]);
+      });
+    });
+
+    return rows
+      .map((line) =>
+        line
+          .map((value) => {
+            const text = String(value ?? "").replace(/"/g, '""');
+            return `"${text}"`;
+          })
+          .join(",")
+      )
+      .join("\n");
+  };
+
+  const downloadFinalCsv = async () => {
+    setReportLoading(true);
+    try {
+      const reportData = await api.getFinalReportData(auth.accessToken);
+      const csv = buildCsvContent(reportData);
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "informe_final_asamblea_ses.csv";
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success("Informe CSV generado");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
+  const ensurePageSpace = (doc, y, extra = 6) => {
+    if (y + extra > 280) {
+      doc.addPage();
+      return 15;
+    }
+    return y;
+  };
+
+  const downloadFinalPdf = async () => {
+    setReportLoading(true);
+    try {
+      const reportData = await api.getFinalReportData(auth.accessToken);
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      let y = 15;
+
+      doc.setFontSize(16);
+      doc.text("Informe Final - Asamblea Delegados SES", 14, y);
+      y += 8;
+      doc.setFontSize(10);
+      doc.text(`Generado: ${new Date(reportData.generated_at).toLocaleString()}`, 14, y);
+      y += 6;
+      doc.text(
+        `Padron: ${reportData?.stats?.total_in_padron || 0} | Registrados: ${reportData?.stats?.registrados || 0} | Puntos: ${reportData?.stats?.total_puntos || 0}`,
+        14,
+        y
+      );
+      y += 8;
+
+      (reportData.points || []).forEach((point) => {
+        y = ensurePageSpace(doc, y, 22);
+        doc.setFontSize(12);
+        doc.text(`Punto ${point.order}: ${point.title}`, 14, y);
+        y += 6;
+        doc.setFontSize(10);
+        doc.text(`Estado: ${point.status}`, 14, y);
+        y += 5;
+        doc.text(
+          `Aprobado: ${point.results.aprobado} | No aprobado: ${point.results.no_aprobado} | Abstencion: ${point.results.abstencion} | Voto en blanco: ${point.results.en_blanco}`,
+          14,
+          y
+        );
+        y += 5;
+        doc.text(`Total votos del punto: ${point.results.total_votes}`, 14, y);
+        y += 6;
+
+        doc.setFontSize(9);
+        if (!(point.votes || []).length) {
+          y = ensurePageSpace(doc, y, 6);
+          doc.text("Sin votos registrados en este punto.", 16, y);
+          y += 6;
+        } else {
+          point.votes.forEach((vote) => {
+            y = ensurePageSpace(doc, y, 5);
+            const line = `- ${vote.delegate_name} (${vote.document_id}) -> ${vote.choice_label} (${new Date(vote.voted_at).toLocaleString()})`;
+            doc.text(line.slice(0, 190), 16, y);
+            y += 4.5;
+          });
+        }
+        y += 2;
+      });
+
+      doc.save("informe_final_asamblea_ses.pdf");
+      toast.success("Informe PDF generado");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setReportLoading(false);
+    }
+  };
+
   const openPoint = async (pointId) => {
     try {
       await api.openPoint(auth.accessToken, pointId);
@@ -215,6 +392,33 @@ export default function AdminDashboard({ auth }) {
               <p className="text-xs text-slate-500">Pendientes</p>
               <p className="ses-test-mono text-2xl font-black text-amber-700">{summary?.pendientes_registro ?? 0}</p>
             </div>
+          </div>
+        </article>
+
+        <article className="ses-card p-5" data-testid="admin-final-report-card">
+          <h3 className="text-lg font-bold text-slate-900">Informe final de asamblea</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Genera informe consolidado con totales por punto y detalle por delegado (PDF + CSV).
+          </p>
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="admin-final-report-actions">
+            <button
+              data-testid="admin-final-report-pdf-button"
+              type="button"
+              onClick={downloadFinalPdf}
+              disabled={reportLoading}
+              className="h-11 rounded-md bg-slate-900 text-sm font-bold text-white transition-colors hover:bg-slate-700 disabled:opacity-60"
+            >
+              Descargar informe PDF
+            </button>
+            <button
+              data-testid="admin-final-report-csv-button"
+              type="button"
+              onClick={downloadFinalCsv}
+              disabled={reportLoading}
+              className="h-11 rounded-md bg-blue-700 text-sm font-bold text-white transition-colors hover:bg-blue-800 disabled:opacity-60"
+            >
+              Descargar informe CSV
+            </button>
           </div>
         </article>
 
@@ -398,6 +602,22 @@ export default function AdminDashboard({ auth }) {
                       className="h-10 rounded-md bg-red-600 px-4 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-40"
                     >
                       Cerrar votación
+                    </button>
+                    <button
+                      data-testid={`admin-point-share-link-button-${point.id}`}
+                      type="button"
+                      onClick={() => copyPointShareLink(point.id)}
+                      className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"
+                    >
+                      Copiar enlace público
+                    </button>
+                    <button
+                      data-testid={`admin-point-open-share-button-${point.id}`}
+                      type="button"
+                      onClick={() => openPointShareLink(point.id)}
+                      className="h-10 rounded-md border border-blue-300 bg-blue-50 px-4 text-sm font-bold text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                      Abrir vista para compartir
                     </button>
                   </div>
                 </article>

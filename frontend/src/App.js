@@ -8,6 +8,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import AuthPage from "./pages/AuthPage";
 import DelegateDashboard from "./pages/DelegateDashboard";
 import LiveResultsPage from "./pages/LiveResultsPage";
+import PointPublicResultPage from "./pages/PointPublicResultPage";
 
 const STORAGE_KEY = "ses_asamblea_auth";
 
@@ -74,6 +75,7 @@ function App() {
               }
             />
             <Route path="/resultados" element={<LiveResultsPage />} />
+            <Route path="/resultados/punto/:pointId" element={<PointPublicResultPage />} />
             <Route path="*" element={<Navigate to={homeRedirect} replace />} />
           </Routes>
         </main>

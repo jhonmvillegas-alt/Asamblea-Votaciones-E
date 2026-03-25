@@ -156,7 +156,7 @@ export default function AuthPage({ onAuthSuccess }) {
           </article>
           <article className="rounded-lg border border-slate-200 bg-slate-50 p-4" data-testid="auth-feature-votos">
             <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Opciones de voto</p>
-            <p className="text-sm font-bold text-slate-900">Aprobado / No aprobado / Abstención / En blanco</p>
+            <p className="text-sm font-bold text-slate-900">1. Aprobado / 2. No aprobado / 3. Abstención / 4. Voto en blanco</p>
           </article>
         </div>
       </div>

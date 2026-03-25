@@ -10,10 +10,10 @@ const chartPalette = {
 };
 
 const chartLabels = {
-  aprobado: "Aprobado",
-  no_aprobado: "No aprobado",
-  abstencion: "Abstención",
-  en_blanco: "En blanco",
+  aprobado: "1. Aprobado",
+  no_aprobado: "2. No aprobado",
+  abstencion: "3. Abstención",
+  en_blanco: "4. Voto en blanco",
 };
 
 export default function LiveResultsPage() {

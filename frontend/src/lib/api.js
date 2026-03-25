@@ -42,6 +42,7 @@ export const api = {
   getActivePoint: (token) => apiRequest("/voting/active-point", { token }),
   castVote: (token, payload) => apiRequest("/voting/vote", { method: "POST", token, body: payload }),
   getPublicResults: () => apiRequest("/voting/results/public"),
+  getPublicPointResult: (pointId) => apiRequest(`/voting/results/public/${pointId}`),
   getLiveState: () => apiRequest("/live/state"),
 
   uploadDelegates: (token, delegates) =>
@@ -57,6 +58,7 @@ export const api = {
   getPoints: (token) => apiRequest("/admin/points", { token }),
   openPoint: (token, pointId) => apiRequest(`/admin/points/${pointId}/open`, { method: "POST", token }),
   closePoint: (token, pointId) => apiRequest(`/admin/points/${pointId}/close`, { method: "POST", token }),
+  getFinalReportData: (token) => apiRequest("/admin/reports/final-data", { token }),
   getDirectivaResults: (token, pointId = "") =>
     apiRequest(`/voting/results/directiva${pointId ? `?point_id=${pointId}` : ""}`, { token }),
 };
