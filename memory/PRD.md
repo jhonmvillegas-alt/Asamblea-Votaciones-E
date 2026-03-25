@@ -81,6 +81,12 @@
   - 2. No aprobado
   - 3. Abstención
   - 4. Voto en blanco
+- Protección de datos en credenciales de delegados:
+  - Nuevos delegados cargados por mesa directiva reciben clave temporal automática = últimos 4 dígitos del documento.
+  - Flujo opcional de cambio de clave en el panel del delegado (`/api/auth/change-password-delegate`).
+  - Indicador de uso de clave temporal en login (`using_temporary_password`) para mostrar recomendación de cambio.
+  - Instructivo general en PDF para delegados (sin exponer contraseñas individuales).
+  - Compatibilidad mantenida: endpoint de registro de delegado permite actualizar clave cuando aún estaba en estado temporal.
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)

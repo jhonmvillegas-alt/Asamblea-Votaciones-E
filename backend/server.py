@@ -452,7 +452,7 @@ async def register_delegate(payload: DelegateRegisterInput) -> MessageResponse:
             detail="No aparece en el padrón de delegados cargado por la mesa directiva.",
         )
 
-    if delegate.get("is_registered"):
+    if delegate.get("is_registered") and not delegate.get("temporary_password_active", False):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Este delegado ya realizó su registro único.",
@@ -469,7 +469,7 @@ async def register_delegate(payload: DelegateRegisterInput) -> MessageResponse:
             }
         },
     )
-    return MessageResponse(message="Registro único completado. Ya puede iniciar sesión.")
+    return MessageResponse(message="Registro actualizado. Ya puede iniciar sesión.")
 
 
 @api_router.post("/auth/login-delegate", response_model=AuthResponse)
