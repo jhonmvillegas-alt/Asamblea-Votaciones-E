@@ -31,6 +31,8 @@ async function apiRequest(path, options = {}) {
 }
 
 export const api = {
+  getBootstrapStatus: () => apiRequest("/public/bootstrap-status"),
+  initializeBootstrap: (payload) => apiRequest("/public/bootstrap-initialize", { method: "POST", body: payload }),
   registerDelegate: (payload) =>
     apiRequest("/auth/register-delegate", { method: "POST", body: payload }),
   loginDelegate: (payload) => apiRequest("/auth/login-delegate", { method: "POST", body: payload }),
@@ -50,6 +52,8 @@ export const api = {
     }),
   getDelegatesSummary: (token) => apiRequest("/admin/delegates/summary", { token }),
   createPoint: (token, payload) => apiRequest("/admin/points", { method: "POST", token, body: payload }),
+  bulkCreatePoints: (token, points) =>
+    apiRequest("/admin/points/bulk", { method: "POST", token, body: { points } }),
   getPoints: (token) => apiRequest("/admin/points", { token }),
   openPoint: (token, pointId) => apiRequest(`/admin/points/${pointId}/open`, { method: "POST", token }),
   closePoint: (token, pointId) => apiRequest(`/admin/points/${pointId}/close`, { method: "POST", token }),

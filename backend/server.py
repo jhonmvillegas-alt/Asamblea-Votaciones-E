@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import os
 from pathlib import Path
-from typing import Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional, Tuple
 import uuid
 
 from dotenv import load_dotenv
@@ -36,6 +36,7 @@ ACCESS_TOKEN_MINUTES = 600
 DEFAULT_ADMIN_USERNAME = os.environ["DEFAULT_ADMIN_USERNAME"]
 DEFAULT_ADMIN_PASSWORD = os.environ["DEFAULT_ADMIN_PASSWORD"]
 SECRET_KEY = os.environ["JWT_SECRET_KEY"]
+AUTO_CREATE_DEFAULT_ADMIN = os.environ["AUTO_CREATE_DEFAULT_ADMIN"].lower() == "true"
 
 VOTE_CHOICES = ["aprobado", "no_aprobado", "abstencion", "en_blanco"]
 VOTE_LABELS = {
@@ -169,6 +170,29 @@ class UploadSummaryResponse(BaseModel):
     total_in_padron: int
 
 
+class PointsUploadSummaryResponse(BaseModel):
+    created: int
+    updated: int
+    total_points: int
+
+
+class AgendaPointUploadItem(BaseModel):
+    title: str = Field(min_length=6, max_length=220)
+    description: str = Field(min_length=4, max_length=500)
+    order: int = Field(ge=1, le=40)
+
+
+class AgendaPointBulkPayload(BaseModel):
+    points: List[AgendaPointUploadItem]
+
+
+class BootstrapInitializeInput(BaseModel):
+    admin_username: str = Field(min_length=3, max_length=40)
+    admin_password: str = Field(min_length=6, max_length=40)
+    delegates: List[DelegateUploadItem] = Field(default_factory=list)
+    points: List[AgendaPointUploadItem] = Field(default_factory=list)
+
+
 def build_empty_totals() -> Dict[str, int]:
     totals = {choice: 0 for choice in VOTE_CHOICES}
     totals["total_votes"] = 0
@@ -233,6 +257,81 @@ async def fetch_active_point() -> Optional[Dict]:
     return await points_coll.find_one({"status": "abierta"}, {"_id": 0}, sort=[("order", 1)])
 
 
+async def upsert_delegates(items: List[DelegateUploadItem]) -> Tuple[int, int]:
+    created = 0
+    updated = 0
+
+    for item in items:
+        document_id = normalize_document(item.document_id)
+        if not document_id:
+            continue
+
+        existing_delegate = await delegates_coll.find_one({"document_id": document_id}, {"_id": 0})
+        if existing_delegate:
+            await delegates_coll.update_one(
+                {"id": existing_delegate["id"]},
+                {
+                    "$set": {
+                        "full_name": item.full_name.strip(),
+                        "updated_at": now_iso(),
+                    }
+                },
+            )
+            updated += 1
+            continue
+
+        await delegates_coll.insert_one(
+            {
+                "id": str(uuid.uuid4()),
+                "full_name": item.full_name.strip(),
+                "document_id": document_id,
+                "is_registered": False,
+                "password_hash": "",
+                "created_at": now_iso(),
+            }
+        )
+        created += 1
+
+    return created, updated
+
+
+async def upsert_points(items: List[AgendaPointUploadItem]) -> Tuple[int, int]:
+    created = 0
+    updated = 0
+
+    for item in items:
+        existing_point = await points_coll.find_one({"order": item.order}, {"_id": 0})
+        if existing_point:
+            await points_coll.update_one(
+                {"id": existing_point["id"]},
+                {
+                    "$set": {
+                        "title": item.title.strip(),
+                        "description": item.description.strip(),
+                        "updated_at": now_iso(),
+                    }
+                },
+            )
+            updated += 1
+            continue
+
+        await points_coll.insert_one(
+            {
+                "id": str(uuid.uuid4()),
+                "title": item.title.strip(),
+                "description": item.description.strip(),
+                "order": item.order,
+                "status": "pendiente",
+                "created_at": now_iso(),
+                "opened_at": None,
+                "closed_at": None,
+            }
+        )
+        created += 1
+
+    return created, updated
+
+
 async def ensure_default_admin() -> None:
     admin = await admins_coll.find_one({"username": DEFAULT_ADMIN_USERNAME}, {"_id": 0})
     if admin:
@@ -252,6 +351,50 @@ async def ensure_default_admin() -> None:
 @api_router.get("/")
 async def root() -> Dict[str, str]:
     return {"message": "SES Votación en Vivo API"}
+
+
+@api_router.get("/public/bootstrap-status")
+async def bootstrap_status() -> Dict[str, int | bool]:
+    admin_count = await admins_coll.count_documents({})
+    delegates_count = await delegates_coll.count_documents({})
+    points_count = await points_coll.count_documents({})
+    return {
+        "setup_required": admin_count == 0,
+        "admin_count": admin_count,
+        "delegates_count": delegates_count,
+        "points_count": points_count,
+    }
+
+
+@api_router.post("/public/bootstrap-initialize")
+async def bootstrap_initialize(payload: BootstrapInitializeInput) -> Dict[str, int | str]:
+    admin_count = await admins_coll.count_documents({})
+    if admin_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La configuración inicial ya fue completada. Ingrese con usuario administrador.",
+        )
+
+    username = payload.admin_username.strip().lower()
+    await admins_coll.insert_one(
+        {
+            "id": str(uuid.uuid4()),
+            "username": username,
+            "password_hash": hash_password(payload.admin_password),
+            "created_at": now_iso(),
+        }
+    )
+
+    delegates_created, delegates_updated = await upsert_delegates(payload.delegates)
+    points_created, points_updated = await upsert_points(payload.points)
+
+    return {
+        "message": "Configuración inicial completada",
+        "delegates_created": delegates_created,
+        "delegates_updated": delegates_updated,
+        "points_created": points_created,
+        "points_updated": points_updated,
+    }
 
 
 @api_router.post("/auth/register-delegate", response_model=MessageResponse)
@@ -342,38 +485,7 @@ async def upload_delegates(
     if not payload.delegates:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe enviar delegados")
 
-    created = 0
-    updated = 0
-    for item in payload.delegates:
-        document_id = normalize_document(item.document_id)
-        if not document_id:
-            continue
-
-        existing_delegate = await delegates_coll.find_one({"document_id": document_id}, {"_id": 0})
-        if existing_delegate:
-            await delegates_coll.update_one(
-                {"id": existing_delegate["id"]},
-                {
-                    "$set": {
-                        "full_name": item.full_name.strip(),
-                        "updated_at": now_iso(),
-                    }
-                },
-            )
-            updated += 1
-            continue
-
-        await delegates_coll.insert_one(
-            {
-                "id": str(uuid.uuid4()),
-                "full_name": item.full_name.strip(),
-                "document_id": document_id,
-                "is_registered": False,
-                "password_hash": "",
-                "created_at": now_iso(),
-            }
-        )
-        created += 1
+    created, updated = await upsert_delegates(payload.delegates)
 
     total_in_padron = await delegates_coll.count_documents({})
     return UploadSummaryResponse(created=created, updated=updated, total_in_padron=total_in_padron)
@@ -414,6 +526,19 @@ async def create_agenda_point(
     }
     await points_coll.insert_one(point)
     return MessageResponse(message="Punto creado correctamente")
+
+
+@api_router.post("/admin/points/bulk", response_model=PointsUploadSummaryResponse)
+async def bulk_upload_points(
+    payload: AgendaPointBulkPayload,
+    _: AuthUser = Depends(require_admin),
+) -> PointsUploadSummaryResponse:
+    if not payload.points:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Debe enviar puntos")
+
+    created, updated = await upsert_points(payload.points)
+    total_points = await points_coll.count_documents({})
+    return PointsUploadSummaryResponse(created=created, updated=updated, total_points=total_points)
 
 
 @api_router.get("/admin/points")
@@ -626,7 +751,8 @@ async def startup_event() -> None:
     await points_coll.create_index("order", unique=True)
     await votes_coll.create_index("id", unique=True)
     await votes_coll.create_index([("point_id", 1), ("delegate_id", 1)], unique=True)
-    await ensure_default_admin()
+    if AUTO_CREATE_DEFAULT_ADMIN:
+        await ensure_default_admin()
 
 
 app.include_router(api_router)

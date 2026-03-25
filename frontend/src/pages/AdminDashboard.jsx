@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../lib/api";
+import { parseDelegatesFile, parsePointsFile, parsePointsTextBlock } from "../lib/importParsers";
 
 const normalizeVoteLabel = {
   aprobado: "Aprobado",
@@ -14,7 +15,10 @@ export default function AdminDashboard({ auth }) {
   const [points, setPoints] = useState([]);
   const [directivaData, setDirectivaData] = useState({ has_data: false });
   const [delegatesText, setDelegatesText] = useState("");
+  const [delegatesFromFile, setDelegatesFromFile] = useState([]);
   const [pointForm, setPointForm] = useState({ title: "", description: "", order: "" });
+  const [pointsBulkText, setPointsBulkText] = useState("");
+  const [pointsFromFile, setPointsFromFile] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
@@ -42,7 +46,7 @@ export default function AdminDashboard({ auth }) {
 
   const activePointId = useMemo(() => points.find((point) => point.status === "abierta")?.id, [points]);
 
-  const parseDelegates = () =>
+  const parseDelegatesFromText = () =>
     delegatesText
       .split("\n")
       .map((line) => line.trim())
@@ -56,9 +60,9 @@ export default function AdminDashboard({ auth }) {
       })
       .filter((item) => item.document_id && item.full_name);
 
-  const submitDelegates = async (event) => {
+  const submitDelegatesFromText = async (event) => {
     event.preventDefault();
-    const delegates = parseDelegates();
+    const delegates = parseDelegatesFromText();
     if (!delegates.length) {
       toast.error("Incluya al menos una línea con formato: documento,nombre");
       return;
@@ -68,6 +72,35 @@ export default function AdminDashboard({ auth }) {
       const response = await api.uploadDelegates(auth.accessToken, delegates);
       toast.success(`Cargados: ${response.created} nuevos, ${response.updated} actualizados`);
       setDelegatesText("");
+      await refresh();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handleDelegatesFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      const parsed = await parseDelegatesFile(file);
+      setDelegatesFromFile(parsed);
+      toast.success(`Archivo de votantes leído: ${parsed.length} filas válidas`);
+    } catch {
+      toast.error("No se pudo procesar el archivo de votantes (CSV/Excel)");
+    }
+  };
+
+  const submitDelegatesFromFile = async () => {
+    if (!delegatesFromFile.length) {
+      toast.error("Cargue primero un archivo CSV/Excel de votantes");
+      return;
+    }
+    try {
+      const response = await api.uploadDelegates(auth.accessToken, delegatesFromFile);
+      toast.success(`Archivo aplicado: ${response.created} nuevos, ${response.updated} actualizados`);
+      setDelegatesFromFile([]);
       await refresh();
     } catch (error) {
       toast.error(error.message);
@@ -84,6 +117,52 @@ export default function AdminDashboard({ auth }) {
       });
       toast.success("Punto creado");
       setPointForm({ title: "", description: "", order: "" });
+      await refresh();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const submitPointsBulkText = async (event) => {
+    event.preventDefault();
+    const parsedPoints = parsePointsTextBlock(pointsBulkText);
+    if (!parsedPoints.length) {
+      toast.error("Formato esperado por línea: orden,titulo,descripcion");
+      return;
+    }
+    try {
+      const response = await api.bulkCreatePoints(auth.accessToken, parsedPoints);
+      toast.success(`Preguntas procesadas: ${response.created} nuevas, ${response.updated} actualizadas`);
+      setPointsBulkText("");
+      await refresh();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const handlePointsFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    try {
+      const parsed = await parsePointsFile(file);
+      setPointsFromFile(parsed);
+      toast.success(`Archivo de preguntas leído: ${parsed.length} filas válidas`);
+    } catch {
+      toast.error("No se pudo procesar el archivo de preguntas (CSV/Excel)");
+    }
+  };
+
+  const submitPointsFromFile = async () => {
+    if (!pointsFromFile.length) {
+      toast.error("Cargue primero un archivo CSV/Excel de preguntas");
+      return;
+    }
+    try {
+      const response = await api.bulkCreatePoints(auth.accessToken, pointsFromFile);
+      toast.success(`Archivo aplicado: ${response.created} nuevas, ${response.updated} actualizadas`);
+      setPointsFromFile([]);
       await refresh();
     } catch (error) {
       toast.error(error.message);
@@ -139,14 +218,14 @@ export default function AdminDashboard({ auth }) {
           </div>
         </article>
 
-        <form className="ses-card p-5" onSubmit={submitDelegates} data-testid="admin-upload-delegates-form">
-          <h3 className="text-lg font-bold text-slate-900">Cargar padrón de delegados</h3>
-          <p className="mt-1 text-sm text-slate-600">Formato por línea: documento,nombre completo</p>
+        <form className="ses-card p-5" onSubmit={submitDelegatesFromText} data-testid="admin-upload-delegates-form">
+          <h3 className="text-lg font-bold text-slate-900">Cargar votantes/delegados</h3>
+          <p className="mt-1 text-sm text-slate-600">Método texto: una línea por delegado → documento,nombre completo</p>
           <textarea
             data-testid="admin-upload-delegates-textarea"
             value={delegatesText}
             onChange={(event) => setDelegatesText(event.target.value)}
-            className="mt-3 h-48 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            className="mt-3 h-32 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             placeholder={"900100,ANA PEREZ\n900101,CARLOS RODRIGUEZ"}
           />
           <button
@@ -154,12 +233,34 @@ export default function AdminDashboard({ auth }) {
             type="submit"
             className="mt-3 h-11 w-full rounded-md bg-blue-600 text-sm font-bold text-white transition-colors hover:bg-blue-700"
           >
-            Cargar / actualizar delegados
+            Cargar delegados desde texto
           </button>
+
+          <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="admin-upload-delegates-file-box">
+            <p className="text-sm font-semibold text-slate-900">Método CSV/Excel</p>
+            <input
+              data-testid="admin-upload-delegates-file-input"
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleDelegatesFile}
+              className="mt-2 block w-full text-sm"
+            />
+            <p className="mt-2 text-sm text-slate-700" data-testid="admin-upload-delegates-file-count">
+              Filas válidas listas: <strong>{delegatesFromFile.length}</strong>
+            </p>
+            <button
+              data-testid="admin-upload-delegates-file-submit-button"
+              type="button"
+              onClick={submitDelegatesFromFile}
+              className="mt-2 h-10 w-full rounded-md bg-indigo-600 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
+            >
+              Cargar delegados desde archivo
+            </button>
+          </div>
         </form>
 
         <form className="ses-card p-5" onSubmit={submitPoint} data-testid="admin-create-point-form">
-          <h3 className="text-lg font-bold text-slate-900">Crear punto del orden del día</h3>
+          <h3 className="text-lg font-bold text-slate-900">Preguntas de asamblea (individual)</h3>
           <div className="mt-3 space-y-3">
             <input
               data-testid="admin-point-title-input"
@@ -194,9 +295,51 @@ export default function AdminDashboard({ auth }) {
             type="submit"
             className="mt-3 h-11 w-full rounded-md bg-slate-900 text-sm font-bold text-white transition-colors hover:bg-slate-700"
           >
-            Crear punto
+            Crear pregunta individual
           </button>
         </form>
+
+        <form className="ses-card p-5" onSubmit={submitPointsBulkText} data-testid="admin-points-bulk-text-form">
+          <h3 className="text-lg font-bold text-slate-900">Preguntas por carga masiva (texto)</h3>
+          <p className="mt-1 text-sm text-slate-600">Formato por línea: orden,titulo,descripcion</p>
+          <textarea
+            data-testid="admin-points-bulk-textarea"
+            value={pointsBulkText}
+            onChange={(event) => setPointsBulkText(event.target.value)}
+            className="mt-3 h-32 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+            placeholder={"1,Aprobación del orden del día,Se somete a votación\n2,Elección de comisión,Definición de comisión verificadora"}
+          />
+          <button
+            data-testid="admin-points-bulk-submit-button"
+            type="submit"
+            className="mt-3 h-11 w-full rounded-md bg-amber-600 text-sm font-bold text-white transition-colors hover:bg-amber-700"
+          >
+            Cargar preguntas desde texto
+          </button>
+        </form>
+
+        <article className="ses-card p-5" data-testid="admin-points-file-upload-card">
+          <h3 className="text-lg font-bold text-slate-900">Preguntas por CSV/Excel</h3>
+          <p className="mt-1 text-sm text-slate-600">Columnas sugeridas: orden, titulo, descripcion</p>
+          <input
+            data-testid="admin-points-file-input"
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handlePointsFile}
+            className="mt-2 block w-full text-sm"
+          />
+          <p className="mt-2 text-sm text-slate-700" data-testid="admin-points-file-count">
+            Filas válidas listas: <strong>{pointsFromFile.length}</strong>
+          </p>
+          <button
+            data-testid="admin-points-file-submit-button"
+            type="button"
+            onClick={submitPointsFromFile}
+            className="mt-2 h-10 w-full rounded-md bg-indigo-600 text-sm font-bold text-white transition-colors hover:bg-indigo-700"
+          >
+            Cargar preguntas desde archivo
+          </button>
+        </article>
       </div>
 
       <div className="space-y-6">
