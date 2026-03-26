@@ -4,13 +4,11 @@ import { jsPDF } from "jspdf";
 import { api } from "../lib/api";
 import { parseDelegatesFile, parsePointsFile } from "../lib/importParsers";
 
-const initialRegister = { document_id: "", password: "" };
 const initialDelegateLogin = { document_id: "", password: "" };
 const initialAdminLogin = { username: "", password: "" };
 
 export default function AuthPage({ onAuthSuccess }) {
   const [activeTab, setActiveTab] = useState("delegado");
-  const [registerForm, setRegisterForm] = useState(initialRegister);
   const [delegateLoginForm, setDelegateLoginForm] = useState(initialDelegateLogin);
   const [adminLoginForm, setAdminLoginForm] = useState(initialAdminLogin);
   const [bootstrapStatus, setBootstrapStatus] = useState(null);
@@ -40,20 +38,6 @@ export default function AuthPage({ onAuthSuccess }) {
       setActiveTab("admin");
     }
   }, [bootstrapStatus, activeTab]);
-
-  const handleRegister = async (event) => {
-    event.preventDefault();
-    setLoading(true);
-    try {
-      const response = await api.registerDelegate(registerForm);
-      toast.success(response.message);
-      setRegisterForm(initialRegister);
-    } catch (error) {
-      toast.error(error.message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleDelegateLogin = async (event) => {
     event.preventDefault();
@@ -170,8 +154,8 @@ export default function AuthPage({ onAuthSuccess }) {
             Elecciones Asamblea de Delegados SES
           </h2>
           <p className="text-sm text-slate-600 sm:text-base" data-testid="auth-main-description">
-            Cada delegado se registra una sola vez con su documento del padrón. La votación se habilita en vivo por la
-            mesa directiva y los resultados aparecen en caliente.
+            Cada delegado ingresa con su documento del padrón y su contraseña asignada. La votación se habilita en vivo
+            por la mesa directiva y los resultados aparecen en caliente.
           </p>
         </div>
 
@@ -225,44 +209,8 @@ export default function AuthPage({ onAuthSuccess }) {
 
         {activeTab === "delegado" ? (
           <div className="space-y-6" data-testid="delegado-auth-panel">
-            <form className="space-y-3" onSubmit={handleRegister} data-testid="delegado-register-form">
-              <h3 className="text-xl font-bold text-slate-900">1) Registro único</h3>
-              <label className="block text-sm font-medium text-slate-700" htmlFor="register-document">
-                Documento
-              </label>
-              <input
-                data-testid="register-document-input"
-                id="register-document"
-                value={registerForm.document_id}
-                onChange={(event) => setRegisterForm((prev) => ({ ...prev, document_id: event.target.value }))}
-                className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none"
-                placeholder="Ej: 91234567"
-                required
-              />
-              <label className="block text-sm font-medium text-slate-700" htmlFor="register-password">
-                Contraseña (mínimo 6 caracteres)
-              </label>
-              <input
-                data-testid="register-password-input"
-                id="register-password"
-                type="password"
-                value={registerForm.password}
-                onChange={(event) => setRegisterForm((prev) => ({ ...prev, password: event.target.value }))}
-                className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-blue-500 focus:outline-none"
-                required
-              />
-              <button
-                data-testid="register-submit-button"
-                className="h-11 w-full rounded-md bg-blue-600 text-sm font-bold text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                type="submit"
-                disabled={loading}
-              >
-                Completar registro
-              </button>
-            </form>
-
             <form className="space-y-3" onSubmit={handleDelegateLogin} data-testid="delegado-login-form">
-              <h3 className="text-xl font-bold text-slate-900">2) Iniciar sesión como delegado</h3>
+              <h3 className="text-xl font-bold text-slate-900">Iniciar sesión como delegado</h3>
               <p className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-medium text-blue-800" data-testid="delegate-login-temporary-password-note">
                 Clave temporal inicial para nuevos delegados: últimos 4 dígitos del documento.
               </p>
