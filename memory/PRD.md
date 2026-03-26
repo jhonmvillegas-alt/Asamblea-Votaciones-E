@@ -90,6 +90,12 @@
   - Se agregó recuperación administrativa de acceso: restablecimiento de clave temporal por documento (`/api/admin/delegates/reset-password`) para casos de bloqueo de login/registro.
   - Simplificación UX solicitada: en frontend de delegados se dejó una sola opción de acceso "Iniciar sesión como delegado" (sin bloque de registro) bajo la política de clave temporal + cambio opcional.
   - Botón rápido visible en panel admin: "Recuperar acceso delegado" con desplazamiento directo al formulario de restablecimiento.
+  - Visibilidad operativa en mesa directiva:
+    - Nuevo panel de delegados logueados/activos (`/api/admin/delegates/activity`) con conteo de activos ahora, logueados hoy y tabla de última actividad.
+    - Tracking de actividad de delegados en login, consulta de punto activo y votación.
+  - Edición de puntos habilitada desde mesa directiva:
+    - Actualización de título, descripción y orden por punto (`PUT /api/admin/points/{point_id}`), incluso si ya existen votos.
+    - Restricción de permisos: solo rol admin puede editar y ver actividad.
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)
