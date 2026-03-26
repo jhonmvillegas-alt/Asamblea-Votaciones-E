@@ -60,7 +60,11 @@ export const api = {
       body: { document_id },
     }),
   getDelegatesSummary: (token) => apiRequest("/admin/delegates/summary", { token }),
+  getDelegatesActivity: (token, active_window_minutes = 15) =>
+    apiRequest(`/admin/delegates/activity?active_window_minutes=${active_window_minutes}`, { token }),
   createPoint: (token, payload) => apiRequest("/admin/points", { method: "POST", token, body: payload }),
+  updatePoint: (token, pointId, payload) =>
+    apiRequest(`/admin/points/${pointId}`, { method: "PUT", token, body: payload }),
   bulkCreatePoints: (token, points) =>
     apiRequest("/admin/points/bulk", { method: "POST", token, body: { points } }),
   getPoints: (token) => apiRequest("/admin/points", { token }),

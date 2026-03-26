@@ -13,6 +13,12 @@ const normalizeVoteLabel = {
 
 export default function AdminDashboard({ auth }) {
   const [summary, setSummary] = useState(null);
+  const [delegatesActivity, setDelegatesActivity] = useState({
+    active_window_minutes: 15,
+    active_now_count: 0,
+    logged_today_count: 0,
+    delegates: [],
+  });
   const [points, setPoints] = useState([]);
   const [directivaData, setDirectivaData] = useState({ has_data: false });
   const [delegatesText, setDelegatesText] = useState("");
@@ -24,15 +30,19 @@ export default function AdminDashboard({ auth }) {
   const [reportLoading, setReportLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const resetFormRef = useRef(null);
+  const [editingPointId, setEditingPointId] = useState("");
+  const [editPointForm, setEditPointForm] = useState({ title: "", description: "", order: "" });
 
   const refresh = useCallback(async () => {
     try {
-      const [summaryData, pointsData, directiva] = await Promise.all([
+      const [summaryData, activityData, pointsData, directiva] = await Promise.all([
         api.getDelegatesSummary(auth.accessToken),
+        api.getDelegatesActivity(auth.accessToken, 15),
         api.getPoints(auth.accessToken),
         api.getDirectivaResults(auth.accessToken),
       ]);
       setSummary(summaryData);
+      setDelegatesActivity(activityData);
       setPoints(pointsData.points || []);
       setDirectivaData(directiva);
     } catch (error) {
@@ -143,6 +153,35 @@ export default function AdminDashboard({ auth }) {
       });
       toast.success("Punto creado");
       setPointForm({ title: "", description: "", order: "" });
+      await refresh();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const beginEditPoint = (point) => {
+    setEditingPointId(point.id);
+    setEditPointForm({
+      title: point.title,
+      description: point.description,
+      order: String(point.order),
+    });
+  };
+
+  const cancelEditPoint = () => {
+    setEditingPointId("");
+    setEditPointForm({ title: "", description: "", order: "" });
+  };
+
+  const saveEditPoint = async (pointId) => {
+    try {
+      const response = await api.updatePoint(auth.accessToken, pointId, {
+        title: editPointForm.title,
+        description: editPointForm.description,
+        order: Number(editPointForm.order),
+      });
+      toast.success(response.message);
+      cancelEditPoint();
       await refresh();
     } catch (error) {
       toast.error(error.message);
@@ -610,8 +649,70 @@ export default function AdminDashboard({ auth }) {
       </div>
 
       <div className="space-y-6">
+        <article className="ses-card p-5" data-testid="admin-delegates-activity-card">
+          <h3 className="text-lg font-bold text-slate-900">Delegados logueados y actividad</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Solo visible para mesa directiva. Activos ahora = última actividad en {delegatesActivity.active_window_minutes} minutos.
+          </p>
+          <div className="mt-3 grid grid-cols-3 gap-3" data-testid="admin-delegates-activity-summary-grid">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="admin-delegates-activity-active-now-card">
+              <p className="text-xs text-slate-500">Activos ahora</p>
+              <p className="ses-test-mono text-2xl font-black text-green-700">{delegatesActivity.active_now_count ?? 0}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="admin-delegates-activity-logged-today-card">
+              <p className="text-xs text-slate-500">Logueados hoy</p>
+              <p className="ses-test-mono text-2xl font-black text-blue-700">{delegatesActivity.logged_today_count ?? 0}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="admin-delegates-activity-total-card">
+              <p className="text-xs text-slate-500">Total delegados</p>
+              <p className="ses-test-mono text-2xl font-black text-slate-900">{delegatesActivity.total_delegates ?? 0}</p>
+            </div>
+          </div>
+
+          <div className="mt-3 max-h-72 overflow-auto rounded-md border border-slate-200" data-testid="admin-delegates-activity-table-wrapper">
+            <table className="w-full border-collapse text-left text-sm" data-testid="admin-delegates-activity-table">
+              <thead className="bg-slate-100">
+                <tr>
+                  <th className="px-3 py-2">Delegado</th>
+                  <th className="px-3 py-2">Estado</th>
+                  <th className="px-3 py-2">Último ingreso</th>
+                  <th className="px-3 py-2">Última actividad</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(delegatesActivity.delegates || []).slice(0, 200).map((delegate, index) => (
+                  <tr key={delegate.id} className="border-t border-slate-200" data-testid={`admin-delegate-activity-row-${index}`}>
+                    <td className="px-3 py-2" data-testid={`admin-delegate-activity-name-${index}`}>
+                      {delegate.full_name}
+                      <div className="ses-test-mono text-xs text-slate-500">{delegate.document_id}</div>
+                    </td>
+                    <td className="px-3 py-2" data-testid={`admin-delegate-activity-status-${index}`}>
+                      {delegate.is_active_now ? (
+                        <span className="rounded-full bg-green-100 px-2 py-1 text-xs font-bold text-green-700">Activo ahora</span>
+                      ) : delegate.logged_today ? (
+                        <span className="rounded-full bg-blue-100 px-2 py-1 text-xs font-bold text-blue-700">Logueado hoy</span>
+                      ) : (
+                        <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-bold text-slate-700">Sin actividad</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-600" data-testid={`admin-delegate-activity-login-${index}`}>
+                      {delegate.last_login_at ? new Date(delegate.last_login_at).toLocaleString() : "-"}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-600" data-testid={`admin-delegate-activity-last-${index}`}>
+                      {delegate.last_activity_at ? new Date(delegate.last_activity_at).toLocaleString() : "-"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
         <article className="ses-card p-5" data-testid="admin-points-list-card">
           <h3 className="text-lg font-bold text-slate-900">Gestión de votación punto a punto</h3>
+          <p className="mt-1 text-sm text-slate-600" data-testid="admin-points-edit-policy-note">
+            Edición habilitada solo para mesa directiva (título, descripción y orden).
+          </p>
           <div className="mt-3 space-y-3" data-testid="admin-points-list">
             {points.length === 0 ? (
               <p className="text-sm text-slate-600" data-testid="admin-points-empty-message">
@@ -647,7 +748,62 @@ export default function AdminDashboard({ auth }) {
                     {point.description}
                   </p>
 
+                  {editingPointId === point.id && (
+                    <div className="mt-3 space-y-2 rounded-md border border-blue-200 bg-blue-50 p-3" data-testid={`admin-point-edit-form-${point.id}`}>
+                      <input
+                        data-testid={`admin-point-edit-title-input-${point.id}`}
+                        value={editPointForm.title}
+                        onChange={(event) => setEditPointForm((prev) => ({ ...prev, title: event.target.value }))}
+                        className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-blue-500 focus:outline-none"
+                        placeholder="Título"
+                      />
+                      <textarea
+                        data-testid={`admin-point-edit-description-input-${point.id}`}
+                        value={editPointForm.description}
+                        onChange={(event) => setEditPointForm((prev) => ({ ...prev, description: event.target.value }))}
+                        className="h-20 w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                        placeholder="Descripción"
+                      />
+                      <input
+                        data-testid={`admin-point-edit-order-input-${point.id}`}
+                        type="number"
+                        min="1"
+                        max="40"
+                        value={editPointForm.order}
+                        onChange={(event) => setEditPointForm((prev) => ({ ...prev, order: event.target.value }))}
+                        className="h-10 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-blue-500 focus:outline-none"
+                        placeholder="Orden"
+                      />
+                      <div className="flex flex-wrap gap-2" data-testid={`admin-point-edit-actions-${point.id}`}>
+                        <button
+                          data-testid={`admin-point-edit-save-button-${point.id}`}
+                          type="button"
+                          onClick={() => saveEditPoint(point.id)}
+                          className="h-10 rounded-md bg-blue-700 px-4 text-sm font-bold text-white transition-colors hover:bg-blue-800"
+                        >
+                          Guardar cambios
+                        </button>
+                        <button
+                          data-testid={`admin-point-edit-cancel-button-${point.id}`}
+                          type="button"
+                          onClick={cancelEditPoint}
+                          className="h-10 rounded-md border border-slate-300 bg-white px-4 text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-3 flex flex-wrap gap-2" data-testid={`admin-point-actions-${point.id}`}>
+                    <button
+                      data-testid={`admin-point-edit-button-${point.id}`}
+                      type="button"
+                      onClick={() => beginEditPoint(point)}
+                      className="h-10 rounded-md border border-indigo-300 bg-indigo-50 px-4 text-sm font-bold text-indigo-700 transition-colors hover:bg-indigo-100"
+                    >
+                      Editar punto
+                    </button>
                     <button
                       data-testid={`admin-open-point-button-${point.id}`}
                       type="button"

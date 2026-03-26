@@ -80,6 +80,15 @@ def create_access_token(payload: Dict[str, str]) -> str:
     return jwt.encode(encoded_payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
 class AuthUser(BaseModel):
     user_id: str
     role: Literal["delegate", "admin"]
@@ -158,6 +167,12 @@ class UserProfile(BaseModel):
 
 
 class AgendaPointCreate(BaseModel):
+    title: str = Field(min_length=6, max_length=220)
+    description: str = Field(min_length=4, max_length=500)
+    order: int = Field(ge=1, le=40)
+
+
+class AgendaPointUpdateInput(BaseModel):
     title: str = Field(min_length=6, max_length=220)
     description: str = Field(min_length=4, max_length=500)
     order: int = Field(ge=1, le=40)
@@ -272,6 +287,13 @@ async def calculate_totals_for_points(point_ids: List[str]) -> Dict[str, Dict[st
 
 async def fetch_active_point() -> Optional[Dict]:
     return await points_coll.find_one({"status": "abierta"}, {"_id": 0}, sort=[("order", 1)])
+
+
+async def touch_delegate_activity(delegate_id: str) -> None:
+    await delegates_coll.update_one(
+        {"id": delegate_id},
+        {"$set": {"last_activity_at": now_iso()}},
+    )
 
 
 async def upsert_delegates(items: List[DelegateUploadItem]) -> Tuple[int, int]:
@@ -487,6 +509,17 @@ async def login_delegate(payload: DelegateLoginInput) -> AuthResponse:
     if not verify_password(payload.password, delegate.get("password_hash", "")):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciales inválidas")
 
+    await delegates_coll.update_one(
+        {"id": delegate["id"]},
+        {
+            "$set": {
+                "last_login_at": now_iso(),
+                "last_activity_at": now_iso(),
+            },
+            "$inc": {"login_count": 1},
+        },
+    )
+
     token = create_access_token(
         {"sub": delegate["id"], "role": "delegate", "name": delegate["full_name"]}
     )
@@ -523,6 +556,7 @@ async def auth_me(current_user: AuthUser = Depends(get_current_user)) -> UserPro
     delegate = await delegates_coll.find_one({"id": current_user.user_id}, {"_id": 0})
     if not delegate:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegado no encontrado")
+    await touch_delegate_activity(current_user.user_id)
     return UserProfile(
         id=delegate["id"],
         role="delegate",
@@ -609,6 +643,54 @@ async def delegates_summary(_: AuthUser = Depends(require_admin)) -> Dict[str, i
     }
 
 
+@api_router.get("/admin/delegates/activity")
+async def delegates_activity(
+    active_window_minutes: int = Query(default=15, ge=1, le=180),
+    _: AuthUser = Depends(require_admin),
+) -> Dict:
+    delegates = await delegates_coll.find({}, {"_id": 0}).sort("full_name", 1).to_list(2000)
+    now = datetime.now(timezone.utc)
+    active_threshold = now - timedelta(minutes=active_window_minutes)
+    today = now.date()
+
+    rows = []
+    active_now_count = 0
+    logged_today_count = 0
+
+    for delegate in delegates:
+        last_login = parse_iso_datetime(delegate.get("last_login_at"))
+        last_activity = parse_iso_datetime(delegate.get("last_activity_at"))
+        is_active_now = bool(last_activity and last_activity >= active_threshold)
+        logged_today = bool(last_login and last_login.date() == today)
+
+        if is_active_now:
+            active_now_count += 1
+        if logged_today:
+            logged_today_count += 1
+
+        rows.append(
+            {
+                "id": delegate.get("id"),
+                "full_name": delegate.get("full_name"),
+                "document_id": delegate.get("document_id"),
+                "is_registered": bool(delegate.get("is_registered", False)),
+                "temporary_password_active": bool(delegate.get("temporary_password_active", False)),
+                "last_login_at": delegate.get("last_login_at"),
+                "last_activity_at": delegate.get("last_activity_at"),
+                "is_active_now": is_active_now,
+                "logged_today": logged_today,
+            }
+        )
+
+    return {
+        "active_window_minutes": active_window_minutes,
+        "active_now_count": active_now_count,
+        "logged_today_count": logged_today_count,
+        "total_delegates": len(rows),
+        "delegates": rows,
+    }
+
+
 @api_router.post("/admin/points", response_model=MessageResponse)
 async def create_agenda_point(
     payload: AgendaPointCreate,
@@ -633,6 +715,38 @@ async def create_agenda_point(
     }
     await points_coll.insert_one(point)
     return MessageResponse(message="Punto creado correctamente")
+
+
+@api_router.put("/admin/points/{point_id}", response_model=MessageResponse)
+async def update_agenda_point(
+    point_id: str,
+    payload: AgendaPointUpdateInput,
+    _: AuthUser = Depends(require_admin),
+) -> MessageResponse:
+    point = await points_coll.find_one({"id": point_id}, {"_id": 0})
+    if not point:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Punto no encontrado")
+
+    if payload.order != point.get("order"):
+        conflict = await points_coll.find_one({"order": payload.order, "id": {"$ne": point_id}}, {"_id": 0})
+        if conflict:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Ya existe otro punto con orden {payload.order}",
+            )
+
+    await points_coll.update_one(
+        {"id": point_id},
+        {
+            "$set": {
+                "title": payload.title.strip(),
+                "description": payload.description.strip(),
+                "order": payload.order,
+                "updated_at": now_iso(),
+            }
+        },
+    )
+    return MessageResponse(message="Punto actualizado correctamente")
 
 
 @api_router.post("/admin/points/bulk", response_model=PointsUploadSummaryResponse)
@@ -699,6 +813,7 @@ async def close_voting_point(point_id: str, _: AuthUser = Depends(require_admin)
 
 @api_router.get("/voting/active-point")
 async def active_point_for_delegate(current_delegate: AuthUser = Depends(require_delegate)) -> Dict:
+    await touch_delegate_activity(current_delegate.user_id)
     point = await fetch_active_point()
     if not point:
         return {"has_active_point": False}
@@ -721,6 +836,7 @@ async def active_point_for_delegate(current_delegate: AuthUser = Depends(require
 
 @api_router.post("/voting/vote", response_model=MessageResponse)
 async def cast_vote(payload: VoteCastInput, current_delegate: AuthUser = Depends(require_delegate)) -> MessageResponse:
+    await touch_delegate_activity(current_delegate.user_id)
     active_point = await fetch_active_point()
     if not active_point:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No hay votación abierta")
