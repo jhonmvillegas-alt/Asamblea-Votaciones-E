@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
+import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../lib/api";
 
 const optionStyles = {
@@ -11,11 +12,28 @@ const optionStyles = {
   en_blanco: "text-slate-500",
 };
 
+const chartPalette = {
+  aprobado: "#16A34A",
+  no_aprobado: "#DC2626",
+  abstencion: "#64748B",
+  en_blanco: "#CBD5E1",
+};
+
 export default function PointPublicResultPage() {
   const { pointId } = useParams();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const cardRef = useRef(null);
+
+  const chartData = useMemo(
+    () =>
+      Object.keys(optionStyles).map((key) => ({
+        key,
+        option: data?.choice_labels?.[key] || key,
+        votes: data?.results?.[key] ?? 0,
+      })),
+    [data]
+  );
 
   useEffect(() => {
     async function fetchPoint() {
@@ -95,6 +113,27 @@ export default function PointPublicResultPage() {
               </p>
             </div>
           ))}
+        </div>
+
+        <div className="mt-5 rounded-lg border border-slate-200 bg-white p-3" data-testid="public-point-results-chart-card">
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500" data-testid="public-point-results-chart-title">
+            Gráfico rápido del punto
+          </p>
+          <div className="mt-2 h-48" data-testid="public-point-results-chart">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="option" tick={{ fontSize: 11 }} />
+                <YAxis allowDecimals={false} />
+                <Tooltip />
+                <Bar dataKey="votes" radius={[6, 6, 0, 0]}>
+                  {chartData.map((entry) => (
+                    <Cell key={entry.key} fill={chartPalette[entry.key]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
         <p className="ses-test-mono mt-4 text-sm text-slate-700" data-testid="public-point-total-votes">

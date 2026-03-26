@@ -96,6 +96,7 @@
   - Edición de puntos habilitada desde mesa directiva:
     - Actualización de título, descripción y orden por punto (`PUT /api/admin/points/{point_id}`), incluso si ya existen votos.
     - Restricción de permisos: solo rol admin puede editar y ver actividad.
+  - Vista compartible por punto mejorada con gráfico rápido embebido (barras) para facilitar difusión visual post-votación.
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)
