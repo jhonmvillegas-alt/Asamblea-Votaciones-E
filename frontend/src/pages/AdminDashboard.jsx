@@ -17,6 +17,7 @@ export default function AdminDashboard({ auth }) {
   const [directivaData, setDirectivaData] = useState({ has_data: false });
   const [delegatesText, setDelegatesText] = useState("");
   const [delegatesFromFile, setDelegatesFromFile] = useState([]);
+  const [resetDocument, setResetDocument] = useState("");
   const [pointForm, setPointForm] = useState({ title: "", description: "", order: "" });
   const [pointsBulkText, setPointsBulkText] = useState("");
   const [pointsFromFile, setPointsFromFile] = useState([]);
@@ -103,6 +104,22 @@ export default function AdminDashboard({ auth }) {
       const response = await api.uploadDelegates(auth.accessToken, delegatesFromFile);
       toast.success(`Archivo aplicado: ${response.created} nuevos, ${response.updated} actualizados`);
       setDelegatesFromFile([]);
+      await refresh();
+    } catch (error) {
+      toast.error(error.message);
+    }
+  };
+
+  const submitResetDelegatePassword = async (event) => {
+    event.preventDefault();
+    if (!resetDocument.trim()) {
+      toast.error("Ingrese el documento del delegado");
+      return;
+    }
+    try {
+      const response = await api.resetDelegatePassword(auth.accessToken, resetDocument.trim());
+      toast.success(response.message);
+      setResetDocument("");
       await refresh();
     } catch (error) {
       toast.error(error.message);
@@ -465,6 +482,28 @@ export default function AdminDashboard({ auth }) {
               Cargar delegados desde archivo
             </button>
           </div>
+        </form>
+
+        <form className="ses-card p-5" onSubmit={submitResetDelegatePassword} data-testid="admin-reset-delegate-password-form">
+          <h3 className="text-lg font-bold text-slate-900">Restablecer acceso de delegado</h3>
+          <p className="mt-1 text-sm text-slate-600">
+            Reasigna clave temporal segura (últimos 4 dígitos del documento) para recuperar acceso.
+          </p>
+          <input
+            data-testid="admin-reset-delegate-document-input"
+            value={resetDocument}
+            onChange={(event) => setResetDocument(event.target.value)}
+            className="mt-3 h-11 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-blue-500 focus:outline-none"
+            placeholder="Documento del delegado"
+            required
+          />
+          <button
+            data-testid="admin-reset-delegate-submit-button"
+            type="submit"
+            className="mt-3 h-11 w-full rounded-md bg-amber-600 text-sm font-bold text-white transition-colors hover:bg-amber-700"
+          >
+            Restablecer contraseña temporal
+          </button>
         </form>
 
         <form className="ses-card p-5" onSubmit={submitPoint} data-testid="admin-create-point-form">

@@ -87,6 +87,7 @@
   - Indicador de uso de clave temporal en login (`using_temporary_password`) para mostrar recomendación de cambio.
   - Instructivo general en PDF para delegados (sin exponer contraseñas individuales).
   - Compatibilidad mantenida: endpoint de registro de delegado permite actualizar clave cuando aún estaba en estado temporal.
+  - Se agregó recuperación administrativa de acceso: restablecimiento de clave temporal por documento (`/api/admin/delegates/reset-password`) para casos de bloqueo de login/registro.
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)

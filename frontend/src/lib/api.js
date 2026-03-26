@@ -53,6 +53,12 @@ export const api = {
       token,
       body: { delegates },
     }),
+  resetDelegatePassword: (token, document_id) =>
+    apiRequest("/admin/delegates/reset-password", {
+      method: "POST",
+      token,
+      body: { document_id },
+    }),
   getDelegatesSummary: (token) => apiRequest("/admin/delegates/summary", { token }),
   createPoint: (token, payload) => apiRequest("/admin/points", { method: "POST", token, body: payload }),
   bulkCreatePoints: (token, points) =>

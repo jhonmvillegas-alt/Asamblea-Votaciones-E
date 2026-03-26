@@ -301,6 +301,9 @@ export default function AuthPage({ onAuthSuccess }) {
               >
                 Entrar al panel de votación
               </button>
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800" data-testid="delegate-access-recovery-note">
+                Si no puede entrar o registrarse, la mesa directiva puede restablecer su acceso con clave temporal (últimos 4 del documento).
+              </p>
               <button
                 data-testid="delegate-access-guide-download-button"
                 className="h-10 w-full rounded-md border border-slate-300 bg-white text-sm font-bold text-slate-700 transition-colors hover:bg-slate-100"

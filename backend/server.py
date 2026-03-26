@@ -173,6 +173,10 @@ class DelegateChangePasswordInput(BaseModel):
     new_password: str = Field(min_length=6, max_length=40)
 
 
+class DelegateResetPasswordInput(BaseModel):
+    document_id: str = Field(min_length=4, max_length=40)
+
+
 class MessageResponse(BaseModel):
     message: str
 
@@ -564,6 +568,32 @@ async def upload_delegates(
 
     total_in_padron = await delegates_coll.count_documents({})
     return UploadSummaryResponse(created=created, updated=updated, total_in_padron=total_in_padron)
+
+
+@api_router.post("/admin/delegates/reset-password", response_model=MessageResponse)
+async def reset_delegate_password(
+    payload: DelegateResetPasswordInput,
+    _: AuthUser = Depends(require_admin),
+) -> MessageResponse:
+    document_id = normalize_document(payload.document_id)
+    delegate = await delegates_coll.find_one({"document_id": document_id}, {"_id": 0})
+    if not delegate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delegado no encontrado")
+
+    await delegates_coll.update_one(
+        {"id": delegate["id"]},
+        {
+            "$set": {
+                "is_registered": True,
+                "password_hash": hash_password(build_temporary_password(document_id)),
+                "temporary_password_active": True,
+                "password_reset_at": now_iso(),
+            }
+        },
+    )
+    return MessageResponse(
+        message="Acceso restablecido. Clave temporal asignada (últimos 4 dígitos del documento)."
+    )
 
 
 @api_router.get("/admin/delegates/summary")
