@@ -89,6 +89,7 @@
   - Compatibilidad mantenida: endpoint de registro de delegado permite actualizar clave cuando aún estaba en estado temporal.
   - Se agregó recuperación administrativa de acceso: restablecimiento de clave temporal por documento (`/api/admin/delegates/reset-password`) para casos de bloqueo de login/registro.
   - Simplificación UX solicitada: en frontend de delegados se dejó una sola opción de acceso "Iniciar sesión como delegado" (sin bloque de registro) bajo la política de clave temporal + cambio opcional.
+  - Botón rápido visible en panel admin: "Recuperar acceso delegado" con desplazamiento directo al formulario de restablecimiento.
 
 ## Backlog priorizado
 ### P0 (siguiente iteración)

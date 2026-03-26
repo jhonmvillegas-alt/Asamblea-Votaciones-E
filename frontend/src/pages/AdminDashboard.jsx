@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { jsPDF } from "jspdf";
 import { api } from "../lib/api";
@@ -23,6 +23,7 @@ export default function AdminDashboard({ auth }) {
   const [pointsFromFile, setPointsFromFile] = useState([]);
   const [reportLoading, setReportLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const resetFormRef = useRef(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -123,6 +124,12 @@ export default function AdminDashboard({ auth }) {
       await refresh();
     } catch (error) {
       toast.error(error.message);
+    }
+  };
+
+  const goToResetAccess = () => {
+    if (resetFormRef.current) {
+      resetFormRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
 
@@ -396,6 +403,14 @@ export default function AdminDashboard({ auth }) {
       <div className="space-y-6">
         <article className="ses-card p-5" data-testid="admin-summary-card">
           <p className="text-xs font-bold uppercase tracking-widest text-blue-700">Participación de registro</p>
+          <button
+            data-testid="admin-quick-reset-access-button"
+            type="button"
+            onClick={goToResetAccess}
+            className="mt-2 h-10 rounded-md bg-amber-600 px-4 text-sm font-bold text-white transition-colors hover:bg-amber-700"
+          >
+            Recuperar acceso delegado
+          </button>
           <div className="mt-3 grid grid-cols-3 gap-3" data-testid="admin-summary-grid">
             <div className="rounded-lg border border-slate-200 bg-slate-50 p-3" data-testid="admin-summary-padron">
               <p className="text-xs text-slate-500">Padrón</p>
@@ -484,7 +499,12 @@ export default function AdminDashboard({ auth }) {
           </div>
         </form>
 
-        <form className="ses-card p-5" onSubmit={submitResetDelegatePassword} data-testid="admin-reset-delegate-password-form">
+        <form
+          ref={resetFormRef}
+          className="ses-card p-5"
+          onSubmit={submitResetDelegatePassword}
+          data-testid="admin-reset-delegate-password-form"
+        >
           <h3 className="text-lg font-bold text-slate-900">Restablecer acceso de delegado</h3>
           <p className="mt-1 text-sm text-slate-600">
             Reasigna clave temporal segura (últimos 4 dígitos del documento) para recuperar acceso.
